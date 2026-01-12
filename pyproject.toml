@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "basketball_stats_bot"
+version = "0.1.0"
+description = "A prop betting narrow AI model"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Noah Santos", email = "noah13a@gmail.com" }
+]
+
+dependencies = [
+    "nba_api",
+    "numpy",
+    "pandas",
+    "requests",
+    "isodate",
+    "python-dotenv",
+    "scikit-learn",
+    "joblib",
+    "xgboost",
+    "matplotlib",
+    "nbainjuries",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

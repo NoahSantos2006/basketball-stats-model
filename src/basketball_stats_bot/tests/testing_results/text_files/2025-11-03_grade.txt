@@ -1,0 +1,28 @@
+
+There were a total of 41 props that had a score above 65 during 2025-11-03 using scoringv5
+
+In the top 10 props you went 90.00%
+
+In the top 20 props you went 85.00%
+
+In 41 props you went 75.61%
+
+
+There were a total of 24 props that had a score above 65 during 2025-11-03 using scoringv6
+
+In the top 10 props you went 80.00%
+
+In the top 20 props you went 80.00%
+
+In 24 props you went 79.17%
+
+
+There were a total of 67 props that had a score above 65 during 2025-11-03 using scoringv7
+
+In the top 10 props you went 90.00%
+
+In the top 20 props you went 90.00%
+
+In the top 50 props you went 80.00%
+
+In 67 props you went 76.12%
