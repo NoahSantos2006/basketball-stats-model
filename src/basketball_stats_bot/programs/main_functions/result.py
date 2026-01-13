@@ -192,7 +192,7 @@ if __name__ == "__main__":
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     today = datetime.now(config.TIMEZONE).date()
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     while curr_date <= today:
         

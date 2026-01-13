@@ -1696,7 +1696,7 @@ def scoringv8(game_logs, current_opposition_id, prop, line, scoreboard, player_p
             return prob_over
 
 # like scoringv8 but uses averages instead of singular game stats ( current best )
-def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs):
+def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn):
 
     def find_features(game_logs, player_id, conn, curr_date, scoreboard, season_start_date, player_positions_df, team_totals_per_player_df, minutes_projection, season_game_logs):
 
@@ -1975,9 +1975,6 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
     
         return features_dict
 
-    conn = sqlite3.connect(config.DB_PATH)
-    season_start_date = '2025-10-21'
-
     game_logs = game_logs.sort_values("GAME_DATE", ascending=False)
 
     player_id = game_logs['PLAYER_ID'].iloc[0]
@@ -1985,7 +1982,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
 
     today_features = {}
 
-    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, season_start_date, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
+    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, config.SEASON_START_DATE, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
 
     for player_id, values in today_features.items():
 
@@ -2394,8 +2391,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 if __name__ == '__main__':
 
     config = load_config()
-    conn = sqlite3.connect(config.DB_PATH)
-    season_start_date = '2025-10-21'
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(season_start_date,))
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(config.SEASON_START_DATE,))
     team_totals_df = pd.read_sql_query("SELECT * FROM TEAM_STATS_2025_2026", conn)

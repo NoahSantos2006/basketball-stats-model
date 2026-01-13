@@ -1002,7 +1002,7 @@ if __name__ == "__main__":
 
     config = load_config()
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     curr_path = os.path.join(config.XGBOOST_PATH, "scoringv9", f"REB_xgboost_model_scoring_v9.pkl")
 

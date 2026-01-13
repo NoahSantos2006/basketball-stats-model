@@ -1167,7 +1167,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
 if __name__ == "__main__":
 
     config = load_config()
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     cursor = conn.cursor()
 

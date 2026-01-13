@@ -2177,7 +2177,7 @@ if __name__ == "__main__":
     
     API_KEY = config.API_KEY
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     current_season = "2025-26"
     current_season_start_date = "2025-10-21"

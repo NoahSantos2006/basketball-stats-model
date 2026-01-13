@@ -505,19 +505,8 @@ def update_db_gamelogs(conn):
     # DESC - descending order
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
-    cursor.execute("""
 
-                SELECT * 
-                FROM player_game_logs
-                ORDER BY GAME_DATE DESC 
-                LIMIT 1
-                   
-    """)
-
-    rows = cursor.fetchall()
-
-    # chooses from the last updated date in the sql db
-    latest_date_str = rows[0][5]
+    latest_date_str = pd.read_sql_query("SELECT * FROM player_game_logs ORDER BY GAME_DATE DESC", conn)['GAME_DATE'].iloc[0]
     curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 

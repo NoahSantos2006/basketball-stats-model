@@ -18,6 +18,27 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cur = conn.cursor()
+
+    cur.execute("""
+
+        CREATE TABLE PTS_PROJECTION
+        VALUES = (
+                GAME_DATE DATE,
+                GAME_ID TEXT,
+                PLAYER_ID INT,
+                PLAYER_NAME TEXT,
+                AVERAGE_LAST_3 FLOAT,
+                AVERAGE_LAST_5 FLOAT,
+                AVERAGE_LAST_7 FLOAT,
+                AVERAGE_LAST_10 FLOAT,
+                POINTS_TREND FLOAT,
+                POSITION_MISSING_POINTS FLOAT,
+                LAST_10_STANDARD_DEVIATION FLOAT,
+                STARTER INT,
+                POINTS INT
+        )
+
+    """)
     
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? AND MIN > 0 ORDER BY GAME_DATE DESC", conn, params=(config.SEASON_START_DATE,))
 

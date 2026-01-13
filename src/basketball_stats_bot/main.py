@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     print(f"Date: {date}")
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     # updates sqlite db
     user_input = input("Do you want to update the sql database? (y/n): ")

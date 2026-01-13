@@ -97,7 +97,6 @@ def update_defense_vs_position(conn, current_season_start_date):
         conn.commit()
 
     team = pd.read_sql_query("SELECT * FROM DEFENSE_VS_POSITION_2025_2026", conn).drop_duplicates('TEAM_ID')
-
     today = datetime.now(ZoneInfo("America/New_York")).date()
 
     if team['LAST_UPDATED'].iloc[0] == str(today):
@@ -105,7 +104,7 @@ def update_defense_vs_position(conn, current_season_start_date):
         print(f"Defense vs Position table was already been updated today ({today}).")
         return
 
-    team_ids = team['TEAM_ID'].to_list()
+    team_ids = team.drop_duplicates('TEAM_ID')['TEAM_ID'].to_list()
 
     print(f"Updating Defense vs. Position Table...")
 

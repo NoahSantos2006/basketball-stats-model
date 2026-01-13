@@ -872,7 +872,7 @@ if __name__ == "__main__":
 
     }
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cursor = conn.cursor()
 
     curr_date_str = '2025-12-20'

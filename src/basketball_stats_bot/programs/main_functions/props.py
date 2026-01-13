@@ -755,7 +755,10 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
         for prop, line in prop_lines.items():
                             
-            curr_score = scoringv9(curr_player_vs_team_or_last_20_df, current_opposition_ID, translation[prop], line, scoreboard, player_positions_df, date, team_totals_per_player_df, minutes_projection, season_game_logs)
+            curr_score = scoringv9(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
+                                   translation[prop], line, scoreboard, 
+                                   player_positions_df, date, team_totals_per_player_df, 
+                                   minutes_projection, season_game_logs, conn)
 
             if curr_score == -2 or not curr_score:
 
@@ -775,7 +778,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 if __name__ == "__main__":
 
     config = load_config()
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cursor = conn.cursor()
 
     curr_date = "2026-01-01"

@@ -64,6 +64,6 @@ if __name__ == "__main__":
     current_season_start_date = "2025-10-21"
     current_season = "2025-26"
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     updateDB(config.API_KEY, curr_date, current_season_start_date, conn, current_season)
