@@ -1,5 +1,5 @@
 
-There were a total of 90 props that had a score above 60 during 2026-01-11.
+There were a total of 333 props that had a score above 55 during 2026-01-11.
 
 In the top 10 props you went 70.00%
 
@@ -7,4 +7,6 @@ In the top 20 props you went 55.00%
 
 In the top 50 props you went 50.00%
 
-In 90 props you went 53.33%
+In the top 100 props you went 57.00%
+
+In 333 props you went 53.75%

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ONE_DRIVE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
+ONE_DRIVE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 
 @dataclass(frozen=True)
 class Config:
