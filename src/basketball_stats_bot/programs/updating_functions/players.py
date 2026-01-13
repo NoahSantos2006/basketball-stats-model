@@ -193,6 +193,9 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
         if user_input == "n":
 
             return
+    
+    cursor.execute("DELETE FROM DNPS WHERE FROM_NBA_INJURIES = 1")
+    conn.commit()
 
     game_logs = pd.read_sql_query("SELECT * FROM player_game_logs", conn)
 

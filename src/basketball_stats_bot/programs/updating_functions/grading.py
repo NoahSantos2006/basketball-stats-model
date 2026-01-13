@@ -42,8 +42,10 @@ def update_system(conn):
 
             stats = box.get_dict()['game']
 
-            allteamboxscores.append(pd.DataFrame(stats['homeTeam']['players']))
-            allteamboxscores.append(pd.DataFrame(stats['awayTeam']['players']))
+            if stats['gameStatus'] != 3:
+
+                allteamboxscores.append(pd.DataFrame(stats['homeTeam']['players']))
+                allteamboxscores.append(pd.DataFrame(stats['awayTeam']['players']))
 
 
         today_box_scores = pd.concat(allteamboxscores, ignore_index=True)
@@ -168,7 +170,6 @@ def update_system(conn):
 
     config = load_config()
 
-    conn = sqlite3.connect(config.DB_PATH)
     system_df = pd.read_sql_query("SELECT * FROM SYSTEM", conn)
 
     non_updated = system_df[system_df['RESULT'].isna()]
@@ -290,6 +291,6 @@ if __name__ == "__main__":
 
     config = load_config()
 
-    conn = sqlite3.connect(config.DB_PATH)
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     update_system(conn=conn)

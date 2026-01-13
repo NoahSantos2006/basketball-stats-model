@@ -19,13 +19,11 @@ from basketball_stats_bot.programs.main_functions.result import result
 if __name__ == "__main__":
 
     config = load_config()
-    current_season_start_date = '2025-10-21'
     current_season = "2025-26"
 
     start = time.time()
 
     date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
-    date = datetime.strptime("2026-01-10", "%Y-%m-%d").date()
 
     print(f"Date: {date}")
 
@@ -40,7 +38,7 @@ if __name__ == "__main__":
 
     if user_input == "y":
         
-        updateDB(config.API_KEY, date, current_season_start_date, conn, current_season)
+        updateDB(config.API_KEY, date, config.SEASON_START_DATE, conn, current_season)
 
     get_lines = input("Do you want to retrieve player prop lines? y/n: ").lower()
 
@@ -61,7 +59,7 @@ if __name__ == "__main__":
         
     scoreboard_to_team_roster_df = scoreboard_to_team_roster("2025-26", date, conn)
 
-    player_vs_team_or_last_20_df = player_vs_team_or_last_20(scoreboard_to_team_roster_df, date, current_season_start_date, conn)
+    player_vs_team_or_last_20_df = player_vs_team_or_last_20(scoreboard_to_team_roster_df, date, config.SEASON_START_DATE, conn)
     
     if only_want_game_logs == "y":
 
@@ -105,7 +103,7 @@ if __name__ == "__main__":
 
             draftkings_sportsbook = props_parser(all_game_event_odds, conn)
 
-            scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, current_season_start_date)
+            scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, config.SEASON_START_DATE)
 
             system = result(scores, date, conn)
 
@@ -126,7 +124,7 @@ if __name__ == "__main__":
 
     draftkings_sportsbook = props_parser(all_game_event_odds, conn)
 
-    scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, current_season_start_date)
+    scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, config.SEASON_START_DATE)
 
     system = result(scores, date, conn)
 

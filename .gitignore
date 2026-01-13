@@ -13,5 +13,7 @@ env/
 # Game Data
 *.db
 *.json
+*.txt
+*.pkl
 
 *.egg-info/

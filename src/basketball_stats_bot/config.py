@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ONE_DRIVE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
 
 @dataclass(frozen=True)
 class Config:
@@ -17,6 +18,7 @@ class Config:
     SEASON_START_DATE: str = "2025-10-21"
     TIMEZONE: str = "America/New_York"
     NBA_API_TIMEOUT: int = 30
+    DB_ONE_DRIVE_PATH: Path = ONE_DRIVE_DIR / "OneDrive" / "data.db"
     DB_PATH: Path = BASE_DIR / "basketball_stats_bot" / "data" / "data.db"
     LAPTOP_DB_PATH: Path = BASE_DIR / "basketball_stats_bot" / "data" / "data_from_laptop.db"
     PC_DB_PATH: Path = BASE_DIR / "basketball_stats_bot" / "data" / "data_from_pc.db"
@@ -39,6 +41,6 @@ def load_config() -> Config:
 
         TIMEZONE=os.getenv("TIMEZONE", "America/New_York"),
         NBA_API_TIMEOUT=int(os.getenv("NBA_API_TIMEOUT", 30)),
-        API_KEY=os.environ["NBA_API_KEY"]
+        API_KEY=os.environ["ODDS_API_KEY"]
         
     )

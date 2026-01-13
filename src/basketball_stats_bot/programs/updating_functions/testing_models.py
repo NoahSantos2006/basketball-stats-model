@@ -28,8 +28,8 @@ if __name__ == "__main__":
         'REB_AST'
     ]
 
-    curr_date_str = '2025-12-20'
-    end_date_str = '2025-12-20'
+    curr_date_str = '2025-12-25'
+    end_date_str = '2025-12-25'
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     
@@ -55,13 +55,13 @@ if __name__ == "__main__":
                 #     tree_method='hist'
                 # ),
 
-                'xgb_v8': xgb.XGBClassifier (
-                    **usage_params,
-                    objective="binary:logistic",
-                    random_state=42,
-                    eval_metric='auc',
-                    tree_method='hist',
-                ),
+                # 'xgb_v8': xgb.XGBClassifier (
+                #     **usage_params,
+                #     objective="binary:logistic",
+                #     random_state=42,
+                #     eval_metric='auc',
+                #     tree_method='hist',
+                # ),
 
                 'xgb_v9': xgb.XGBClassifier (
                     **usage_params,
@@ -71,13 +71,13 @@ if __name__ == "__main__":
                     tree_method='hist',
                 ),
 
-                # 'xgb_v12': xgb.XGBClassifier (
-                #     **usage_params,
-                #     objective="binary:logistic",
-                #     random_state=42,
-                #     eval_metric='auc',
-                #     tree_method='hist',
-                # )
+                'xgb_v13': xgb.XGBClassifier (
+                    **usage_params,
+                    objective="binary:logistic",
+                    random_state=42,
+                    eval_metric='auc',
+                    tree_method='hist',
+                )
 
             }
 
@@ -199,17 +199,17 @@ if __name__ == "__main__":
 
                 elif name == 'xgb_v12':
 
-                    feature = [
+                    features = [
                         "LAST_GAME",
                         "SECOND_LAST_GAME",
-                        "EMA_LAST_3_OVERALL",
-                        "EMA_LAST_5_OVERALL",
-                        "EMA_LAST_7_OVERALL",
-                        "EMA_LAST_10_OVERALL",
-                        "EMA_LAST_20_OVERALL",
+                        "THIRD_LAST_GAME",
+                        "AVG_LAST_5_OVERALL",
+                        "AVG_LAST_7_OVERALL",
+                        "AVG_LAST_10_OVERALL",
+                        "AVERAGE_LAST_20",
                         "LAST_GAME_VS_OPP",
                         "SECOND_LAST_GAME_VS_OPP",
-                        "AVG_LAST_3_VS_OPP",
+                        "THIRD_LAST_GAME_VS_OPP",
                         "AVG_LAST_7_VS_OPP",
                         "AVERAGE_LAST_10_VS_OPP",
                         "DEF_RANK",
@@ -217,7 +217,29 @@ if __name__ == "__main__":
                         f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE",
                         f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE",
                         "VENUE"
+                    ],
+                
+                elif name == 'xgb_v13':
+
+                    features = [
+                        "LAST_GAME",
+                        "AVG_LAST_3_OVERALL",
+                        "AVG_LAST_5_OVERALL",
+                        "AVG_LAST_7_OVERALL",
+                        "AVG_LAST_10_OVERALL",
+                        "AVERAGE_LAST_20",
+                        "LAST_GAME_VS_OPP",
+                        "AVG_LAST_3_VS_OPP",
+                        "AVG_LAST_7_VS_OPP",
+                        "AVERAGE_LAST_10_VS_OPP",
+                        "DEF_RANK",
+                        "OPP_GAME_COUNT",
+                        f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE",
+                        f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE",
+                        "VENUE",
+                        "MINUTES_PROJECTION",
                     ]
+                
                 
 
 
