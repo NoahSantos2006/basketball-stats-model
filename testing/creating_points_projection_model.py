@@ -9,9 +9,9 @@ from datetime import datetime, timedelta
 from basketball_stats_bot.config import load_config
 
 
-def find_points_projection(season_game_logs, curr_scoreboard, positions_df, season_start_date, curr_date, player_id, conn):
+def find_points_projection(season_game_logs, curr_scoreboard, positions_df, curr_date, player_id, conn):
 
-    def find_points_projection_features(conn, season_start_date, curr_date, season_game_logs, curr_scoreboard, positions_df, player_id):
+    def find_points_projection_features(conn, curr_date, season_game_logs, curr_scoreboard, positions_df, player_id):
 
         def avg_last_3_5_7_10(game_logs, player_id, curr_date):
 
@@ -156,20 +156,7 @@ def find_points_projection(season_game_logs, curr_scoreboard, positions_df, seas
 
             return std_dev
 
-        def find_total_games_played_this_season(curr_date, player_id, game_logs):
-
-            current_player_season_game_logs = len(
-                game_logs[
-
-                    (game_logs['PLAYER_ID'] == player_id) &
-                    (game_logs['GAME_DATE'] < curr_date) &
-                    (game_logs['MIN'] > 0)
-                ]
-            )
-
-            return current_player_season_game_logs
-
-        def find_games_started_last_5(curr_date, player_id, season_game_logs):
+        def find_if_starter(curr_date, player_id, season_game_logs):
 
             player_game_logs = season_game_logs[
                 (season_game_logs['PLAYER_ID'] == player_id) &
@@ -181,9 +168,11 @@ def find_points_projection(season_game_logs, curr_scoreboard, positions_df, seas
 
                 return np.nan
 
-            return len(player_game_logs[
-                (player_game_logs['STARTER'] == 1)
-            ])
+            return (
+                1
+                if len(player_game_logs[(player_game_logs['STARTER'] == 1)]) / len(player_game_logs) > 0.5
+                else 0
+            )
 
         positions = positions_df[positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
         team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
@@ -192,10 +181,9 @@ def find_points_projection(season_game_logs, curr_scoreboard, positions_df, seas
         print(f"Finding points projection features for {player_name}...")
 
         average_last_3, average_last_5, average_last_7, average_last_10 = avg_last_3_5_7_10(season_game_logs, player_id, str(curr_date))
-        minute_trend = points_trend_5(str(curr_date), player_id, player_name, season_game_logs)
+        points_trend = points_trend_5(str(curr_date), player_id, player_name, season_game_logs)
         last_10_std_dev = find_last_10_std_dev(str(curr_date), player_id, player_name, season_game_logs)
-        total_games_played_this_season = find_total_games_played_this_season(str(curr_date), player_id, season_game_logs)
-        games_started_last_5 = find_games_started_last_5(str(curr_date), player_id, season_game_logs)
+        starter = find_if_starter(str(curr_date), player_id, season_game_logs)
         position_missing_pts = find_position_missing_pts(conn, curr_date, positions, team_id)
 
         features_dict = {
@@ -204,10 +192,9 @@ def find_points_projection(season_game_logs, curr_scoreboard, positions_df, seas
             "AVERAGE_LAST_7": average_last_7, 
             "AVERAGE_LAST_10": average_last_10,
             "POSITION_MISSING_POINTS": position_missing_pts,
-            "MINUTE_TREND": minute_trend, 
+            "POINTS_TREND": points_trend, 
             "LAST_10_STANDARD_DEVIATION": last_10_std_dev,
-            "TOTAL_GAMES_PLAYED_THIS_SEASON": total_games_played_this_season,
-            "GAMES_STARTED_LAST_5": games_started_last_5,
+            "STARTER": starter
         }
 
 
@@ -215,7 +202,6 @@ def find_points_projection(season_game_logs, curr_scoreboard, positions_df, seas
 
     points_projection_features = pd.DataFrame([find_points_projection_features(
         conn=conn, 
-        season_start_date=season_start_date, 
         curr_date=curr_date,
         season_game_logs=season_game_logs,
         curr_scoreboard=curr_scoreboard,

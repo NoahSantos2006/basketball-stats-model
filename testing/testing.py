@@ -19,6 +19,7 @@ if __name__ == "__main__":
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cur = conn.cursor()
 
+
     cur.execute("""
 
         CREATE TABLE PTS_PROJECTION

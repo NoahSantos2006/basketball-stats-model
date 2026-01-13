@@ -1094,7 +1094,6 @@ def update_minutes_projection_features_table(conn, season_start_date):
 
         return int(player_game_logs['MIN'].iloc[0])
     
-    season_start_date = "2025-10-21"
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(season_start_date,))
     scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER", conn)
     positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
@@ -1171,11 +1170,10 @@ if __name__ == "__main__":
 
     cursor = conn.cursor()
 
-    season_start_date = "2025-10-21"
     curr_date = datetime.strptime("2026-10-21", "%Y-%m-%d").date()
     end_date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
-    end_date = datetime.strptime("2026-01-10", "%Y-%m-%d").date()
+    end_date = datetime.strptime("2026-01-13", "%Y-%m-%d").date()
 
-    update_props_training_table(season_start_date=season_start_date, conn=conn)
+    update_minutes_projection_features_table(conn=conn, season_start_date=config.SEASON_START_DATE)
 
     print(f"Done with updating.")

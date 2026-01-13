@@ -173,6 +173,78 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
         return average_minutes
     
+    def find_average_points(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_points = 0
+        
+        else:
+
+            average_points = float(player_game_logs_before_curr_date['PTS'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_points
+    
+    def find_average_assists(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_assists = 0
+        
+        else:
+
+            average_assists = float(player_game_logs_before_curr_date['AST'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_assists
+    
+    def find_average_rebounds(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_rebounds = 0
+        
+        else:
+
+            average_rebounds = float(player_game_logs_before_curr_date['REB'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_rebounds
+    
+    def find_average_FG3M(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_FG3M = 0
+        
+        else:
+
+            average_FG3M = float(player_game_logs_before_curr_date['FG3M'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_FG3M
+  
     config = load_config()
     
     cursor = conn.cursor()
@@ -197,10 +269,8 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
     cursor.execute("DELETE FROM DNPS WHERE FROM_NBA_INJURIES = 1")
     conn.commit()
 
-    game_logs = pd.read_sql_query("SELECT * FROM player_game_logs", conn)
-
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(config.SEASON_START_DATE,))
     scoreboard_df = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER", conn)
-    
     team_stats = pd.read_sql_query("SELECT * FROM TEAM_STATS_2025_2026", conn)
 
     for player in player_status_dict:
@@ -229,10 +299,18 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
             average_minutes = find_average_minutes(
                 player_id=player_id, 
                 curr_date=str(curr_date), 
-                game_logs=game_logs, 
+                game_logs=season_game_logs, 
                 season_start_date=season_start_date
             )
-        
+            curr_avg_pts = find_average_points(player_id, str(curr_date), season_game_logs)
+            curr_avg_reb = find_average_rebounds(player_id, str(curr_date), season_game_logs)
+            curr_avg_ast = find_average_assists(player_id, str(curr_date), season_game_logs)
+            curr_avg_fg3m = find_average_FG3M(player_id, str(curr_date), season_game_logs)
+            curr_avg_pra = curr_avg_pts + curr_avg_reb + curr_avg_ast
+            curr_avg_pts_reb = curr_avg_pts + curr_avg_reb
+            curr_avg_pts_ast = curr_avg_pts + curr_avg_ast
+            curr_avg_reb_ast = curr_avg_reb + curr_avg_ast
+
             stats = [
                 str(curr_date),
                 curr_game_id,
@@ -241,7 +319,15 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
                 player_id,
                 player_name,
                 average_minutes,
-                1
+                1,
+                curr_avg_pts,
+                curr_avg_reb,
+                curr_avg_ast,
+                curr_avg_fg3m,
+                curr_avg_pra,
+                curr_avg_pts_reb,
+                curr_avg_pts_ast,
+                curr_avg_reb_ast
             ]
 
             placeholders = ", ".join(['?']*len(stats))
@@ -274,14 +360,85 @@ def update_dnps_table(conn, season_start_date):
 
         return average_minutes
     
+    def find_average_points(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_points = 0
+        
+        else:
+
+            average_points = float(player_game_logs_before_curr_date['PTS'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_points
+    
+    def find_average_assists(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_assists = 0
+        
+        else:
+
+            average_assists = float(player_game_logs_before_curr_date['AST'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_assists
+    
+    def find_average_rebounds(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_rebounds = 0
+        
+        else:
+
+            average_rebounds = float(player_game_logs_before_curr_date['REB'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_rebounds
+    
+    def find_average_FG3M(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_FG3M = 0
+        
+        else:
+
+            average_FG3M = float(player_game_logs_before_curr_date['FG3M'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_FG3M
+    
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM DNPS WHERE FROM_NBAINJURIES = ?", (1,))
     
     check_for_last_date_updated = pd.read_sql_query("SELECT * FROM DNPS WHERE FROM_NBAINJURIES != ? ORDER BY GAME_DATE DESC", conn, params=(1,))
-
     latest_date_str = check_for_last_date_updated['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date()
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(season_start_date,))
@@ -290,7 +447,7 @@ def update_dnps_table(conn, season_start_date):
 
         print(f"Updating DNPS sql table for {curr_date}..")
 
-        curr_date_game_ids = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?", conn, params=(str(curr_date),)).drop_duplicates("GAME_ID")['GAME_ID'].to_list()
+        curr_date_game_ids = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS WHERE DATE = ?", conn, params=(str(curr_date),))['GAME_ID'].to_list()
 
         for game_id in curr_date_game_ids:
 
@@ -302,15 +459,26 @@ def update_dnps_table(conn, season_start_date):
 
                 for player in venue_function['players']:
 
-                    if player['status'] != "ACTIVE":
+                    if player['status'] != "ACTIVE" or 'notPlayingReason' in player:
 
                         team_id = venue_function['teamId']
                         team_name = f"{venue_function['teamCity']} {venue_function['teamName']}"
                         player_name = player['name']
                         player_id = player['personId']
                         curr_avg_min = find_average_minutes(player_id, str(curr_date), season_game_logs)
+                        curr_avg_pts = find_average_points(player_id, str(curr_date), season_game_logs)
+                        curr_avg_ast = find_average_assists(player_id, str(curr_date), season_game_logs)
+                        curr_avg_reb = find_average_rebounds(player_id, str(curr_date), season_game_logs)
+                        curr_avg_fg3m = find_average_FG3M(player_id, str(curr_date), season_game_logs)
+                        curr_avg_pra = curr_avg_pts + curr_avg_ast + curr_avg_reb
+                        curr_avg_pts_ast = curr_avg_pts + curr_avg_ast
+                        curr_avg_pts_reb = curr_avg_pts + curr_avg_reb
+                        curr_avg_reb_ast = curr_avg_reb + curr_avg_ast
 
-                        stats = [str(curr_date), game_id, team_id, team_name, player_id, player_name, curr_avg_min, 0]
+                        stats = [str(curr_date), game_id, team_id, team_name, 
+                                 player_id, player_name, curr_avg_min, 0, curr_avg_pts,
+                                   curr_avg_reb, curr_avg_ast, curr_avg_fg3m, curr_avg_pra,
+                                   curr_avg_pts_reb, curr_avg_pts_ast, curr_avg_reb_ast]
 
                         placeholders = ", ".join(['?']*len(stats))
 
@@ -833,8 +1001,6 @@ def update_team_totals_per_player(conn):
                 tenth_second = float(str(curr_time[5:7]) + str(curr_time[-3:-1]))*0.1
                 curr_in_time_real = court_start_times[quarter] - (minute_to_tenth_second + tenth_second)
 
-                print(f"Finding stats for play {play['actionNumber']}...")
-
                 if curr_in_time_real in subbed_times and curr_in_time_real not in cache:
 
                     for team in game_rotation:
@@ -846,7 +1012,6 @@ def update_team_totals_per_player(conn):
 
                         for player_id in player_ids:
 
-                            print(f"{player_id} was subbed in.")
                             on_court_set.add((player_id, team_id))
 
                         subbed_out = team[team['OUT_TIME_REAL'] == curr_in_time_real]
@@ -854,7 +1019,6 @@ def update_team_totals_per_player(conn):
 
                         for player_id in player_ids:
                             
-                            print(f"{player_id} was subbed out.")
                             on_court_set.discard((player_id, team_id))
                     
                     if len(on_court_set) > 10:
@@ -1199,7 +1363,6 @@ if __name__ == "__main__":
 
     config = load_config()
 
-    conn = sqlite3.connect(config.DB_PATH)
-    season_start_date = '2025-10-21'
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    update_team_totals_per_player(conn=conn)
+    update_dnps_table(conn=conn, season_start_date=config.SEASON_START_DATE)
