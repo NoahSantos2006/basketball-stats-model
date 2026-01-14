@@ -220,7 +220,7 @@ def update_db_gamelogs(conn):
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
 
-    curr_date = datetime.strptime("2024-10-22", "%Y-%m-%d").date()
+    curr_date = datetime.strptime("2024-01-06", "%Y-%m-%d").date()
     end_date = datetime.strptime("2025-04-13", "%Y-%m-%d").date()
 
     while curr_date < end_date:
