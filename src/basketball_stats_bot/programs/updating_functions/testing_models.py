@@ -1,5 +1,6 @@
 import xgboost as xgb
-from xgboost import XGBClassifier, XGBRegressor
+from xgboost import XGBClassifier, XGBRegressor, plot_importance
+import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score, brier_score_loss, log_loss
 import joblib
 import sqlite3
@@ -28,8 +29,8 @@ if __name__ == "__main__":
         'REB_AST'
     ]
 
-    curr_date_str = '2025-12-25'
-    end_date_str = '2025-12-25'
+    curr_date_str = '2025-12-20'
+    end_date_str = '2026-01-05'
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     
@@ -71,7 +72,15 @@ if __name__ == "__main__":
                     tree_method='hist',
                 ),
 
-                'xgb_v13': xgb.XGBClassifier (
+                # 'xgb_v14': xgb.XGBClassifier (
+                #     **usage_params,
+                #     objective="binary:logistic",
+                #     random_state=42,
+                #     eval_metric='auc',
+                #     tree_method='hist',
+                # ),
+
+                'xgb_v15': xgb.XGBClassifier (
                     **usage_params,
                     objective="binary:logistic",
                     random_state=42,
@@ -217,9 +226,9 @@ if __name__ == "__main__":
                         f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE",
                         f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE",
                         "VENUE"
-                    ],
+                    ]
                 
-                elif name == 'xgb_v13':
+                elif name == 'xgb_v14':
 
                     features = [
                         "LAST_GAME",
@@ -237,7 +246,29 @@ if __name__ == "__main__":
                         f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE",
                         f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE",
                         "VENUE",
+                        "POSITION_MISSING_STAT"
+                    ]
+                
+                elif name == 'xgb_v15':
+
+                    features = [
+                        "AVG_LAST_3_OVERALL",
+                        "AVG_LAST_5_OVERALL",
+                        "AVG_LAST_7_OVERALL",
+                        "AVG_LAST_10_OVERALL",
+                        "AVERAGE_LAST_20",
+                        "AVG_LAST_3_VS_OPP",
+                        "AVG_LAST_7_VS_OPP",
+                        "AVERAGE_LAST_10_VS_OPP",
+                        "DEF_RANK",
+                        "OPP_GAME_COUNT",
+                        f"AVG_LAST_5_{prop}_SHARE",
+                        f"AVG_LAST_10_{prop}_SHARE",
                         "MINUTES_PROJECTION",
+                        "POSITION_MISSING_STAT",
+                        f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE",
+                        f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE",
+                        "VENUE",
                     ]
                 
                 
@@ -250,6 +281,9 @@ if __name__ == "__main__":
                 y_test = test_df['TARGET']
 
                 model.fit(X_train, y_train)
+
+                # plot_importance(model)
+                # plt.show()
 
                 y_proba = model.predict_proba(X_test)[:, 1]
 
@@ -291,10 +325,18 @@ if __name__ == "__main__":
 
         curr_date += timedelta(days=1)
             
-        results_df = pd.DataFrame(results)
+    results_df = pd.DataFrame(results)
 
-        results_df.to_json("results_df.json", orient='records', indent=4)
+    results_df.to_json("results_df.json", orient='records', indent=4)
 
-        print(results_df)
 
-        exit(1)
+
+    xgb_v9_model = results_df[results_df['MODEL'] == 'xgb_v9']
+    v9_avg_auc = xgb_v9_model['AUC SCORE'].sum() / len(xgb_v9_model)
+
+    xgb_v15_model = results_df[results_df['MODEL'] == 'xgb_v15']
+    v15_avg_auc = xgb_v15_model['AUC SCORE'].sum() / len(xgb_v15_model)
+
+    print(f"Average AUC for v9: {v9_avg_auc}")
+    print(f"Average AUC for v15: {v15_avg_auc}")
+

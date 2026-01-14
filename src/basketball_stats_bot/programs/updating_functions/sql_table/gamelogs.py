@@ -6,11 +6,18 @@ import isodate
 import unicodedata
 import pandas as pd
 from zoneinfo import ZoneInfo
+import numpy as np
 import json
 import sys
+import time
+from requests import Timeout
+
+from basketball_stats_bot.config import load_config
 
 
 def update_db_gamelogs(conn):
+
+    config = load_config()
 
     def clean_name(text):
 
@@ -48,15 +55,28 @@ def update_db_gamelogs(conn):
 
         return current_games, current_season_id
 
-    def find_reg_data(game_id, current_season_id):
+    def find_reg_data(gameId, current_season_id):
 
-        reg_boxscore = boxscore.BoxScore(game_id=game_id).get_dict()
+        while True:
+
+            try:
+
+                reg_boxscore = boxscore.BoxScore(game_id=gameId).get_dict()
+                break
+            
+            except Timeout as t:
+
+                continue
+
+            except:
+
+                raise
 
         current_game_stats = reg_boxscore['game']
 
         if current_game_stats['gameStatus'] != 3:
 
-            return []
+            return -1
 
         home_team = current_game_stats['homeTeam']
         away_team = current_game_stats['awayTeam']
@@ -71,7 +91,6 @@ def update_db_gamelogs(conn):
             home_team_outcome = 'W'
             away_team_outcome = 'L'
         
-        dnps = []
         reg_boxscore_stats = {}
 
         for team in ['homeTeam', 'awayTeam']:
@@ -142,10 +161,25 @@ def update_db_gamelogs(conn):
 
         return reg_boxscore_stats 
 
-    def find_pct_data(game_id):
+    def find_pct_data(game_id, curr_date):
+        
+        while True:
 
-        box = boxscoreusagev3.BoxScoreUsageV3(game_id=game_id).get_dict()
-        game_date = box['meta']['time'][:10]
+            try:
+
+                box = boxscoreusagev3.BoxScoreUsageV3(game_id=game_id).get_dict()
+                break
+
+            except Timeout as t:
+                
+                continue
+
+            except:
+
+                print(f"Could not find boxscoreusagev3 for {game_id}. Check player.py Line 455")
+                raise
+        
+        print(f"Updating {game_id} on {curr_date}")
 
         pct_player_id_dict = {}
 
@@ -156,7 +190,7 @@ def update_db_gamelogs(conn):
             for player in curr['players']:
 
                 player_id = player['personId']
-
+    
                 params = [
                     player['statistics']['percentageFieldGoalsMade'],
                     player['statistics']['percentageFieldGoalsAttempted'],
@@ -170,6 +204,10 @@ def update_db_gamelogs(conn):
                     player['statistics']['percentageSteals'],
                     player['statistics']['percentageBlocks'],
                     player['statistics']['percentagePoints'],
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan
                 ]
             
                 pct_player_id_dict[player_id] = params
@@ -181,23 +219,11 @@ def update_db_gamelogs(conn):
     # DESC - descending order
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
-    cursor.execute("""
 
-                SELECT * 
-                FROM player_game_logs
-                ORDER BY GAME_DATE DESC 
-                LIMIT 1
-                   
-    """)
+    curr_date = datetime.strptime("2024-10-22", "%Y-%m-%d").date()
+    end_date = datetime.strptime("2025-04-13", "%Y-%m-%d").date()
 
-    rows = cursor.fetchall()
-
-    # chooses from the last updated date in the sql db
-    latest_date_str = rows[0][5]
-    curr_date = datetime.strptime('2025-12-22', "%Y-%m-%d").date()
-    today = datetime.now(ZoneInfo("America/New_York")).date()
-
-    while curr_date <= today:
+    while curr_date < end_date:
 
         print(f"Finding gamelogs for {curr_date}..")
 
@@ -205,6 +231,7 @@ def update_db_gamelogs(conn):
 
         if not current_games:
 
+            print(f"Couldn't find games for {curr_date}")
             curr_date += timedelta(days=1)
             continue
 
@@ -212,7 +239,13 @@ def update_db_gamelogs(conn):
 
             arr = []
             reg_boxscore_stats = find_reg_data(game_id, current_season_id)
-            pct_boxscore_stats = find_pct_data(game_id)
+
+            if reg_boxscore_stats == -1:
+
+                print(f"Boxscores weren't recorded for {game_id}. Check update_db_gamelogs Line 546.")
+                continue
+
+            pct_boxscore_stats = find_pct_data(game_id, str(curr_date))
 
             for key, val in pct_boxscore_stats.items():
 
@@ -225,15 +258,19 @@ def update_db_gamelogs(conn):
                 query = f"INSERT OR REPLACE INTO player_game_logs VALUES ({placeholders})"
 
                 cursor.execute(query, stats)
+            
+            time.sleep(0.2)
         
         curr_date += timedelta(days=1)
-    
-    conn.commit()
+
+        conn.commit()
 
     print(f"Gamelogs updated.")
 
 if __name__ == "__main__":
 
-    conn = sqlite3.connect(r"basketball stats bot/main/game_data/data.db")
+    config = load_config()
+
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     update_db_gamelogs(conn)

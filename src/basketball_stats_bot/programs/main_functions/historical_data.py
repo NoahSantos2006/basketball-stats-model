@@ -17,7 +17,7 @@ from io import StringIO
 from basketball_stats_bot.config import load_config
 from nba_api.live.nba.endpoints import scoreboard, boxscore
 from nba_api.stats.endpoints import leaguegamefinder, commonteamroster
-from basketball_stats_bot.programs.scoring.scoring_functions import scoringv8
+from basketball_stats_bot.programs.scoring.scoring_functions import scoringv8, scoringv9
 
 
 
@@ -351,7 +351,14 @@ def props_parser(all_game_event_odds, conn, current_date):
 
             name_cleaned = name_edge_cases[player_name]
 
-        player_id = int(game_logs_player_names[game_logs_player_names['NAME_CLEAN'] == name_cleaned]['PLAYER_ID'].iloc[0])
+        curr_player_logs = game_logs_player_names[game_logs_player_names['NAME_CLEAN'] == name_cleaned]
+
+        if curr_player_logs.empty:
+
+            print(f"Couldn't find game logs for {player_name}")
+            sys.exit(1)
+
+        player_id = int(curr_player_logs['PLAYER_ID'].iloc[0])
         
         curr_column = ['DATE', 'PLAYER', 'PLAYER_ID']
         curr_values = [current_date, player_name, player_id]
@@ -573,7 +580,7 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
 
         """, row.to_list())
 
-        conn.commit()
+    conn.commit()
 
     return scoreboard_to_team_roster_df
 
@@ -1046,7 +1053,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
     for player, prop_lines in draftkings_sportsbook.items():
 
-        print(f"Calculating score for {player} using scoringv8")
+        print(f"Calculating score for {player} using scoringv9")
 
         player = clean_name(player)
 
@@ -1084,7 +1091,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
         for prop, line in prop_lines.items():
                             
-            curr_score = scoringv8(curr_player_vs_team_or_last_20_df, current_opposition_ID, translation[prop], line, scoreboard, player_positions_df, date, team_totals_df, minutes_projection, season_game_logs)
+            curr_score = scoringv9(curr_player_vs_team_or_last_20_df, current_opposition_ID, translation[prop], line, scoreboard, player_positions_df, date, team_totals_df, minutes_projection, season_game_logs)
 
             if not curr_score or curr_score == -2:
 
@@ -2179,11 +2186,11 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    current_season = "2025-26"
-    current_season_start_date = "2025-10-21"
+    current_season = "2024-25"
+    current_season_start_date = "2024-10-22"
 
-    curr_date_str = "2026-01-05"
-    end_date_str = "2026-01-05"
+    curr_date_str = "2025-01-10"
+    end_date_str = "2025-01-10"
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
 
