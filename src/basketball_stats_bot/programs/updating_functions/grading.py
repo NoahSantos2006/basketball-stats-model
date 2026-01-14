@@ -202,11 +202,6 @@ def update_system(conn):
 
     end_date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
-    curr_date_str = "2026-01-10"
-    end_date_str = "2026-01-10"
-    curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
-    end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-
     while curr_date <= end_date:
 
         df = system_grade(str(curr_date), conn)
@@ -295,6 +290,7 @@ def grade_system(conn, curr_date_str, end_date_str):
 
         today_nba_api_game_ids = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS WHERE DATE = ?", conn, params=(str(date),))
 
+    
         if today_nba_api_game_ids.empty:
 
             print(f"No games found for {date}")

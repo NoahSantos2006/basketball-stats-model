@@ -266,7 +266,7 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
             return
     
-    cursor.execute("DELETE FROM DNPS WHERE FROM_NBA_INJURIES = 1")
+    cursor.execute("DELETE FROM DNPS WHERE FROM_NBAINJURIES = 1")
     conn.commit()
 
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(config.SEASON_START_DATE,))
@@ -438,7 +438,7 @@ def update_dnps_table(conn, season_start_date):
     
     check_for_last_date_updated = pd.read_sql_query("SELECT * FROM DNPS WHERE FROM_NBAINJURIES != ? ORDER BY GAME_DATE DESC", conn, params=(1,))
     latest_date_str = check_for_last_date_updated['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date()
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(season_start_date,))
@@ -1225,7 +1225,7 @@ def update_team_totals_per_player(conn):
         return on_court_stats_df
 
     latest_date_str = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER ORDER BY GAME_DATE DESC", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime("2026-01-11", "%Y-%m-%d").date() + timedelta(days=1)
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
     cursor = conn.cursor()
@@ -1323,6 +1323,8 @@ def update_team_totals_per_player(conn):
 
                         """, (float(int(stat_recorded) / curr_team_total_per_player_stat), curr_pid, curr_gid))
 
+                conn.commit()
+
                 player_id = hashmap['PLAYER_ID']
                 minutes = curr_box_score[curr_box_score['PLAYER_ID'] == player_id]['MIN'].iloc[0]
                 stats.append(int(minutes))
@@ -1343,10 +1345,14 @@ def update_team_totals_per_player(conn):
         
         curr_date += timedelta(days=1)
     
-    with open(f"corrupted_GameRotation.json", "r") as f:
+    if not os.path.isfile("corrupted_GameRotation.json"):
 
-        all_corrupted = json.load(f)
+        with open("corrupted_GameRotation.json", "w") as f:
+
+            json.dump(config.CORRUPTED_GAME_ROTATION_GAME_IDS, f, indent=4)
     
+    all_corrupted = config.CORRUPTED_GAME_ROTATION_GAME_IDS
+
     for game_id in corrupted:
 
         if game_id not in all_corrupted:
@@ -1365,4 +1371,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    update_dnps_table(conn=conn, season_start_date=config.SEASON_START_DATE)
+    update_team_totals_per_player(conn=conn)

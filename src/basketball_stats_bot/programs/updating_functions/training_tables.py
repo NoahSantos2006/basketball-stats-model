@@ -279,6 +279,7 @@ def update_props_training_table(season_start_date, conn):
                 return games_played_last_5, games_played_last_10
 
             positions = positions_df[positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
+
             team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
             player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
 
@@ -409,7 +410,6 @@ def update_props_training_table(season_start_date, conn):
             avg_last_10_pct_share += curr_pct
             avg_last_10_minutes += minutes
     
-
         avg_last_5_pct_share = (
             np.nan
             if (len(last_5_player_games) - len(corrupted_in_last_5)) == 0
@@ -547,7 +547,7 @@ def update_props_training_table(season_start_date, conn):
     player_positions_df = pd.read_sql_query('SELECT * FROM PLAYER_POSITIONS', conn,)
     team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER", conn)
 
-    while curr_date <= today:
+    while curr_date < today:
 
         game_date = str(curr_date)
         two_years_from_curr_date = str(curr_date - timedelta(days=730))
@@ -676,6 +676,8 @@ def update_props_training_table(season_start_date, conn):
 
                 if np.isnan(minutes_projection) or avg_last_5_minutes == 0 or np.isnan(avg_last_5_pct_share):
 
+                    print(minutes_projection, avg_last_5_minutes, avg_last_5_pct_share)
+
                     expected_from_last_5_minus_line = np.nan
                     expected_from_last_10_minus_line = np.nan
                 
@@ -683,7 +685,6 @@ def update_props_training_table(season_start_date, conn):
 
                     expected_from_last_5_minus_line = (((avg_last_5_team_totals * avg_last_5_pct_share) / avg_last_5_minutes) * minutes_projection) - prop_line
                     expected_from_last_10_minus_line = (((avg_last_10_team_totals * avg_last_10_pct_share) / avg_last_10_minutes) * minutes_projection) - prop_line
-            
 
                 extra_pct_dict[f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE"] = expected_from_last_5_minus_line
                 extra_pct_dict[f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE"] = expected_from_last_10_minus_line
@@ -1174,6 +1175,7 @@ if __name__ == "__main__":
     end_date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     end_date = datetime.strptime("2026-01-13", "%Y-%m-%d").date()
 
-    update_minutes_projection_features_table(conn=conn, season_start_date=config.SEASON_START_DATE)
+
+    update_props_training_table(config.SEASON_START_DATE, conn)
 
     print(f"Done with updating.")

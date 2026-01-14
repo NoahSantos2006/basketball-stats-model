@@ -1006,4 +1006,4 @@ if __name__ == "__main__":
 
     curr_path = os.path.join(config.XGBOOST_PATH, "scoringv9", f"REB_xgboost_model_scoring_v9.pkl")
 
-    train_v13_model(conn=conn)
+    train_v9_model(conn=conn)
