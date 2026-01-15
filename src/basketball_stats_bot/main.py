@@ -24,6 +24,7 @@ if __name__ == "__main__":
     start = time.time()
 
     date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
+    date = datetime.strptime("2026-01-14", "%Y-%m-%d").date()
 
     print(f"Date: {date}")
 

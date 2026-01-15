@@ -20,6 +20,215 @@ from nba_api.stats.endpoints import boxscoreusagev3, leaguegamefinder, commontea
 from nba_api.live.nba.endpoints import boxscore, scoreboard
 
 
+def update_dnps_from_bref(conn, season_start_date, curr_date):
+
+    def find_average_minutes(player_id, curr_date, game_logs, season_start_date):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] >= season_start_date) &
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_minutes = 0
+        
+        else:
+
+            average_minutes = float(player_game_logs_before_curr_date['MIN'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_minutes
+    
+    def find_average_points(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_points = 0
+        
+        else:
+
+            average_points = float(player_game_logs_before_curr_date['PTS'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_points
+    
+    def find_average_assists(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_assists = 0
+        
+        else:
+
+            average_assists = float(player_game_logs_before_curr_date['AST'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_assists
+    
+    def find_average_rebounds(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_rebounds = 0
+        
+        else:
+
+            average_rebounds = float(player_game_logs_before_curr_date['REB'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_rebounds
+    
+    def find_average_FG3M(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_FG3M = 0
+        
+        else:
+
+            average_FG3M = float(player_game_logs_before_curr_date['FG3M'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_FG3M
+ 
+    def clean_name(text):
+
+        removed_accents_text =  "".join(
+            c for c in unicodedata.normalize('NFD', text)
+            if unicodedata.category(c) != "Mn"
+        )
+
+        clean = removed_accents_text.replace(".", "")
+
+        return clean
+
+    injury_df = pd.read_html("https://www.basketball-reference.com/friv/injuries.fcgi")[0]
+
+    config = load_config()
+    cursor = conn.cursor()
+
+    today_scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?", conn, params=(curr_date,))
+
+    current_team_ids = set(today_scoreboard.drop_duplicates("TeamID")['TeamID'].to_list())
+
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(config.SEASON_START_DATE,))
+    team_stats = pd.read_sql_query("SELECT * FROM TEAM_STATS_2025_2026", conn)
+
+    team_finding = season_game_logs.drop_duplicates("TEAM_ID")
+
+    team_names = team_finding['TEAM_NAME'].to_list()
+    team_ids = team_finding['TEAM_ID'].to_list()
+    team_name_ids = dict(zip(team_names, team_ids))
+    team_name_ids['Los Angeles Clippers'] = 1610612746
+
+
+    players = injury_df['Player'].to_list()
+    teams = injury_df['Team'].to_list()
+    desc = injury_df['Description'].to_list()
+
+    player_team_desc = list(zip(players, teams, desc))
+
+    out = []
+
+    for player_name, team, desc in player_team_desc:
+        
+        if team_name_ids[team] in current_team_ids:
+
+            if desc[:3] == "Out":
+
+                out.append((player_name, team))
+        
+    parsed = []
+    
+    for player_name, team in out:
+
+        player_name = clean_name(player_name)
+
+        player_game_logs = season_game_logs[season_game_logs['NAME_CLEAN'] == player_name]
+
+        if player_game_logs.empty:
+
+            print(f"Couldn't find game logs for {player_name}")
+            sys.exit(1)
+        
+        player_id = player_game_logs['PLAYER_ID'].iloc[0]
+
+        parsed.append((player_name, int(player_id)))
+
+    for player_name, player_id in parsed:
+
+        curr_player_scoreboard = today_scoreboard[today_scoreboard['PLAYER_ID'] == player_id]
+
+        if curr_player_scoreboard.empty:
+
+            print(f"Could not find a scoreboard to roster row for {player_name}. Check parsing_nba_injuries.py Line 218")
+            continue
+
+        curr_game_id = curr_player_scoreboard['GAME_ID'].iloc[0]
+        team_id = curr_player_scoreboard['TeamID'].iloc[0]
+        team_name = team_stats[team_stats['TEAM_ID'] == str(team_id)]['TEAM_NAME'].iloc[0]
+        average_minutes = find_average_minutes(
+            player_id=player_id, 
+            curr_date=str(curr_date), 
+            game_logs=season_game_logs, 
+            season_start_date=season_start_date
+        )
+        curr_avg_pts = find_average_points(player_id, str(curr_date), season_game_logs)
+        curr_avg_reb = find_average_rebounds(player_id, str(curr_date), season_game_logs)
+        curr_avg_ast = find_average_assists(player_id, str(curr_date), season_game_logs)
+        curr_avg_fg3m = find_average_FG3M(player_id, str(curr_date), season_game_logs)
+        curr_avg_pra = curr_avg_pts + curr_avg_reb + curr_avg_ast
+        curr_avg_pts_reb = curr_avg_pts + curr_avg_reb
+        curr_avg_pts_ast = curr_avg_pts + curr_avg_ast
+        curr_avg_reb_ast = curr_avg_reb + curr_avg_ast
+
+        stats = [
+            str(curr_date),
+            curr_game_id,
+            int(team_id),
+            team_name,
+            player_id,
+            player_name,
+            average_minutes,
+            1,
+            curr_avg_pts,
+            curr_avg_reb,
+            curr_avg_ast,
+            curr_avg_fg3m,
+            curr_avg_pra,
+            curr_avg_pts_reb,
+            curr_avg_pts_ast,
+            curr_avg_reb_ast
+        ]
+
+        placeholders = ", ".join(['?']*len(stats))
+
+        cursor.execute(f"INSERT OR REPLACE INTO DNPS VALUES ({placeholders})", stats)
+    
+    conn.commit()
+
 def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
     user_input = input(f"Do you want to find injuries from NBAINJURIES API for {curr_date}? (y/n): ").lower()
@@ -135,8 +344,21 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
             try:
 
-                injury_df = injury.get_reportdata(date, return_df=True)
+                injury_df = injury.get_reportdata(
+                    date, 
+                    return_df=True,
+                    timeout=(5, 10),
+                    headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "application/pdf"
+                    }
+                )
                 break
+            
+            except Timeout as t:
+
+                print(t)
+                sys.exit(1)
 
             except Exception:
                 
@@ -1371,4 +1593,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    update_team_totals_per_player(conn=conn)
+    update_dnps_from_bref(conn, config.SEASON_START_DATE, "2026-01-14")

@@ -25,6 +25,7 @@ dependencies = [
     "xgboost",
     "matplotlib",
     "nbainjuries",
+    "pdfplumber"
 ]
 
 [tool.setuptools]
