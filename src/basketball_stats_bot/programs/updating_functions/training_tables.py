@@ -569,7 +569,7 @@ def update_props_training_table(season_start_date, conn):
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     check_for_latest_date = pd.read_sql_query("SELECT * FROM PROPS_TRAINING_TABLE ORDER BY GAME_DATE DESC", conn)
     latest_date_str = check_for_latest_date['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2026-01-11", "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
 
     # all games during and before the curr_date ordered by game date descending
     game_logs = pd.read_sql_query('SELECT * FROM player_game_logs ORDER BY GAME_DATE DESC', conn)

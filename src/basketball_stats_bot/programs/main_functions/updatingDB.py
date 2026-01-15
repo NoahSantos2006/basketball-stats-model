@@ -9,7 +9,7 @@ from basketball_stats_bot.config import load_config
 
 from basketball_stats_bot.programs.updating_functions.model_training import (
     train_minutes_projection_model, 
-    train_v9_model
+    train_v10_model
 )
 from basketball_stats_bot.programs.updating_functions.players import (
     update_db_gamelogs,
@@ -50,7 +50,7 @@ def updateDB(API_KEY, curr_date, current_season_start_date, conn, current_season
     update_props_training_table(season_start_date=current_season_start_date, conn=conn)
 
     train_minutes_projection_model(conn=conn)
-    train_v9_model(conn=conn)
+    train_v10_model(conn=conn)
 
     print(f"SQL database updated. ({curr_date})")
 

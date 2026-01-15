@@ -140,7 +140,6 @@ def update_dnps_from_bref(conn, season_start_date, curr_date):
     team_name_ids = dict(zip(team_names, team_ids))
     team_name_ids['Los Angeles Clippers'] = 1610612746
 
-
     players = injury_df['Player'].to_list()
     teams = injury_df['Team'].to_list()
     desc = injury_df['Description'].to_list()
@@ -153,8 +152,6 @@ def update_dnps_from_bref(conn, season_start_date, curr_date):
         if team_name_ids[team] in current_team_ids:
 
             if desc[:3] == "Out":
-
-                out.append((player_name, team))
 
                 player_name = clean_name(player_name)
 
@@ -171,6 +168,8 @@ def update_dnps_from_bref(conn, season_start_date, curr_date):
     
     cursor.execute("DELETE FROM DNPS WHERE FROM_NBAINJURIES = 1")
     conn.commit()
+
+    print(f"Updating injuries from basketball reference.")
 
     for player_name, player_id in out:
 
@@ -1195,7 +1194,7 @@ def update_team_totals_per_player(conn):
             for player in court_stats_df_to_dict:
 
                 court_stats_dict[player['PLAYER_ID']] = player
-            
+
             play_by_play = play_by_play.to_dict(orient='records')
 
             court_start_times = {
@@ -1239,7 +1238,7 @@ def update_team_totals_per_player(conn):
                             on_court_set.discard((player_id, team_id))
                     
                     if len(on_court_set) > 10:
-
+                        
                         return pd.DataFrame()
                     
                     cache.add(curr_in_time_real)
@@ -1442,7 +1441,7 @@ def update_team_totals_per_player(conn):
         return on_court_stats_df
 
     latest_date_str = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER ORDER BY GAME_DATE DESC", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2026-01-11", "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime("2026-01-13", "%Y-%m-%d").date() + timedelta(days=1)
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
     cursor = conn.cursor()
@@ -1568,7 +1567,7 @@ def update_team_totals_per_player(conn):
 
             json.dump(config.CORRUPTED_GAME_ROTATION_GAME_IDS, f, indent=4)
     
-    all_corrupted = config.CORRUPTED_GAME_ROTATION_GAME_IDS
+    all_corrupted = list(config.CORRUPTED_GAME_ROTATION_GAME_IDS)
 
     for game_id in corrupted:
 
@@ -1588,4 +1587,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    update_dnps_from_nbainjuries(conn, config.SEASON_START_DATE, "2026-01-14")
+    update_dnps_from_bref(conn, config.SEASON_START_DATE, "2026-01-15")

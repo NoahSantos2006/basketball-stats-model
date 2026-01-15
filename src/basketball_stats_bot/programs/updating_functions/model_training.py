@@ -535,7 +535,6 @@ def train_v9_model(conn):
 
         search.fit(X,y)
 
-        print(f"Best CV AUC:", search.best_score_)
         best_params = search.best_params_
 
         best_params_path = os.path.join(config.XGBOOST_PATH, "testing_best_params", f"{prop}_best_params.pkl")
@@ -647,7 +646,6 @@ def train_v10_model(conn):
 
         search.fit(X,y)
 
-        print(f"Best CV AUC:", search.best_score_)
         best_params = search.best_params_
 
         best_params_path = os.path.join(config.XGBOOST_PATH, "testing_best_params", f"{prop}_best_params.pkl")

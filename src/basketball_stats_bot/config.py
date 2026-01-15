@@ -32,7 +32,8 @@ class Config:
     CORRUPTED_GAME_ROTATION_GAME_IDS: List[int] = (
         "0022500314",
         "0022500498",
-        "0022500523"
+        "0022500523",
+        "0022500576"
     )
 
 def load_config() -> Config:

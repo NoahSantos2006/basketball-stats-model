@@ -1847,7 +1847,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
 
             if player_game_logs_before_curr_date_vs_opp.empty:
 
-                print(f"Could not find gamelogs for current player before {curr_date}")
+                print(f"Could not find gamelogs against opposition for current player before {curr_date}")
                 return [], np.nan, np.nan, np.nan, 0
 
             opp_games_for_current_prop = player_game_logs_before_curr_date_vs_opp[prop].to_list()
@@ -2233,7 +2233,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
         )
         player_positions = player_positions_df[player_positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
 
-        position_missing_stat = find_position_missing_stats(conn, curr_date, player_positions, prop)
+        position_missing_stat = find_position_missing_stats(conn, curr_date, player_positions, team_id, prop)
 
         if len(player_positions) == 0:
 
@@ -2347,7 +2347,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
             
             df = pd.DataFrame([feature])
 
-            model_file_path = os.path.join(config.XGBOOST_PATH, "scoringv9", f"{prop}_xgboost_model_scoring_v9.pkl")
+            model_file_path = os.path.join(config.XGBOOST_PATH, "scoringv10", f"{prop}_xgboost_model_scoring_v10.pkl")
             model = joblib.load(model_file_path)
 
             prob_over = model.predict_proba(df)[0][1] * 100

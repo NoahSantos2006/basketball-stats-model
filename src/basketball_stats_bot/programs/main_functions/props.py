@@ -13,7 +13,7 @@ import joblib
 import statistics
 
 from basketball_stats_bot.config import load_config
-from basketball_stats_bot.programs.scoring.scoring_functions import scoringv6, scoringv7, scoringv8, scoringv9
+from basketball_stats_bot.programs.scoring.scoring_functions import scoringv9, scoringv10
 
 def get_today_ids(API_KEY, conn):
 
@@ -589,8 +589,6 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
             team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
             player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
 
-            print(f"Finding minutes projection features for {player_name}...")
-
             average_last_3, average_last_5, average_last_7, average_last_10 = avg_last_3_5_7_10(season_game_logs, player_id, str(curr_date))
             minute_trend = minutes_trend_5(str(curr_date), player_id, player_name, season_game_logs)
             position_missing_minutes = find_position_missing_minutes(conn, str(curr_date), positions, int(team_id))
@@ -755,7 +753,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
         for prop, line in prop_lines.items():
                             
-            curr_score = scoringv9(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
+            curr_score = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
                                    translation[prop], line, scoreboard, 
                                    player_positions_df, date, team_totals_per_player_df, 
                                    minutes_projection, season_game_logs, conn)
