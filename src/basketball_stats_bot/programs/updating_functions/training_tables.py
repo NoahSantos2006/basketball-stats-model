@@ -875,68 +875,68 @@ def update_minutes_projection_features_table(conn, season_start_date):
 
     def avg_last_3_5_7_10(game_logs, player_id, curr_date):
 
-        game_logs = game_logs[
-            (game_logs['GAME_DATE'] < str(curr_date)) &
-            (game_logs['PLAYER_ID'] == player_id)
-        ]
+                game_logs = game_logs[
+                    (game_logs['GAME_DATE'] < str(curr_date)) &
+                    (game_logs['PLAYER_ID'] == player_id) &
+                    (game_logs['MIN'] > 0)
+                ].sort_values("GAME_DATE", ascending=False)
 
-        minutes_list = game_logs['MIN'].to_list()
-        last_3 = []
-        last_5 = []
-        last_7 = []
-        last_10 = []
+                minutes_list = game_logs['MIN'].to_list()
+                last_3 = []
+                last_5 = []
+                last_7 = []
+                last_10 = []
 
-        if len(minutes_list) == 0:
+                if len(minutes_list) == 0:
 
-            return np.nan, np.nan, np.nan, np.nan
+                    return np.nan, np.nan, np.nan, np.nan
 
-        i = 0
+                i = 0
 
-        while i < min(10, len(minutes_list)):
+                while i < min(10, len(minutes_list)):
 
-            if len(last_3) < 3:
-                last_3.append(minutes_list[i])       
-            if len(last_5) < 5:
-                last_5.append(minutes_list[i])
-            if len(last_7) < 7:
-                last_7.append(minutes_list[i])
-            if len(last_10) < 10:
-                last_10.append(minutes_list[i])
+                    if len(last_3) < 3:
+                        last_3.append(minutes_list[i])       
+                    if len(last_5) < 5:
+                        last_5.append(minutes_list[i])
+                    if len(last_7) < 7:
+                        last_7.append(minutes_list[i])
+                    if len(last_10) < 10:
+                        last_10.append(minutes_list[i])
 
-            i += 1
-        
-        curr_average = sum(minutes_list) / len(minutes_list)
+                    i += 1
+                
+                curr_average = sum(minutes_list) / len(minutes_list)
 
-        while len(last_10) < 10:
+                while len(last_10) < 10:
 
-            if len(last_3) < 3:
-                last_3.append(curr_average)       
-            if len(last_5) < 5:
-                last_5.append(curr_average)
-            if len(last_7) < 7:
-                last_7.append(curr_average)
-            if len(last_10) < 10:
-                last_10.append(curr_average)
+                    if len(last_3) < 3:
+                        last_3.append(curr_average)       
+                    if len(last_5) < 5:
+                        last_5.append(curr_average)
+                    if len(last_7) < 7:
+                        last_7.append(curr_average)
+                    if len(last_10) < 10:
+                        last_10.append(curr_average)
 
-        average_last_3 = float(sum(last_3) / 3)
-        average_last_5 = float(sum(last_5) / 5)
-        average_last_7 = float(sum(last_7) / 7)
-        average_last_10 = float(sum(last_10) / 10)
+                average_last_3 = float(sum(last_3) / 3)
+                average_last_5 = float(sum(last_5) / 5)
+                average_last_7 = float(sum(last_7) / 7)
+                average_last_10 = float(sum(last_10) / 10)
 
-        return average_last_3, average_last_5, average_last_7, average_last_10
+                return average_last_3, average_last_5, average_last_7, average_last_10
 
-    def minutes_trend_5(conn, curr_date, player_id, player_name, season_game_logs):
+    def minutes_trend_5(curr_date, player_id, player_name, season_game_logs):
         
         curr_player_game_logs = season_game_logs[
             (season_game_logs['GAME_DATE'] < str(curr_date)) &
             (season_game_logs['PLAYER_ID'] == player_id) &
             (season_game_logs['MIN'] > 0)
-        ]
+        ].sort_values("GAME_DATE", ascending=False)
         
         minutes_list = curr_player_game_logs['MIN'].to_list()
 
         last_5 = []
-        average = 0
 
         if len(minutes_list) == 0:
 
@@ -948,14 +948,8 @@ def update_minutes_projection_features_table(conn, season_start_date):
         if len(last_5) < 2:
 
             return np.nan
-        
-        average = sum(last_5) / len(last_5)
 
-        while len(last_5) < 5:
-
-            last_5.append(average)
-
-        slope = (last_5[-1] - last_5[0]) / 4
+        slope = (last_5[-1] - last_5[0]) / (len(last_5) - 1)
 
         return slope
 
@@ -974,7 +968,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
                     WHERE p.POSITION = ?
                     AND d.GAME_DATE = ?
                     AND d.TEAM_ID = ?
-                                   
+                                
                 """, conn, params=(position, str(curr_date), team_id))
 
             if not df.empty:
@@ -996,12 +990,14 @@ def update_minutes_projection_features_table(conn, season_start_date):
             (game_logs['PLAYER_ID'] == player_id) &
             (game_logs['GAME_DATE'] < curr_date) &
             (game_logs['MIN'] > 0)
-        ]
+        ].sort_values("GAME_DATE", ascending=False)
 
         if current_player_game_logs.empty:
 
             print(f"Could not find game logs before {curr_date} for {player_name}")
             return np.nan
+        
+        current_player_game_logs = current_player_game_logs.sort_values("GAME_DATE", ascending=False)
 
         last_10_games = current_player_game_logs.iloc[:10]['MIN'].to_list()
 
@@ -1058,7 +1054,8 @@ def update_minutes_projection_features_table(conn, season_start_date):
         if game_logs[
 
             (game_logs['GAME_DATE'] == str(day_before_curr_date)) &
-            (game_logs['PLAYER_ID'] == player_id)
+            (game_logs['PLAYER_ID'] == player_id) &
+            (game_logs['MIN'] > 0)
 
         ].empty:
             
@@ -1072,7 +1069,9 @@ def update_minutes_projection_features_table(conn, season_start_date):
             (season_game_logs['PLAYER_ID'] == player_id) &
             (season_game_logs['GAME_DATE'] < curr_date) &
             (season_game_logs['MIN'] > 0)
-        ].iloc[:5]
+        ]
+
+        player_game_logs = player_game_logs.sort_values("GAME_DATE", ascending=False).iloc[:5]
 
         if player_game_logs.empty:
 
@@ -1090,7 +1089,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
             (season_game_logs['GAME_DATE'] < str(curr_date)) &
             (season_game_logs['MIN'] > 0)
 
-        ].iloc[:10]
+        ].sort_values("GAME_DATE", ascending=False).iloc[:10]
 
         if player_logs.empty:
 
@@ -1103,7 +1102,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
             (season_game_logs['TEAM_ID'] == team_id) &
             (season_game_logs['GAME_DATE'] < str(curr_date))
 
-        ].drop_duplicates("GAME_DATE").iloc[:10]
+        ].sort_values("GAME_DATE", ascending=False).drop_duplicates("GAME_DATE").iloc[:10]
 
         games_played_last_5 = 0
         games_played_last_10 = 0
@@ -1168,7 +1167,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
             player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
 
             average_last_3, average_last_5, average_last_7, average_last_10 = avg_last_3_5_7_10(season_game_logs, player_id, str(curr_date))
-            minute_trend = minutes_trend_5(conn, str(curr_date), player_id, player_name, season_game_logs)
+            minute_trend = minutes_trend_5(str(curr_date), player_id, player_name, season_game_logs)
             position_missing_minutes = find_position_missing_minutes(conn, str(curr_date), positions, int(team_id))
             last_10_std_dev = find_last_10_std_dev(str(curr_date), player_id, player_name, season_game_logs)
             days_rest = find_days_rest(str(curr_date), player_id, season_game_logs, season_start_date)
@@ -1219,10 +1218,10 @@ if __name__ == "__main__":
 
     cursor = conn.cursor()
 
-    curr_date = datetime.strptime("2026-10-21", "%Y-%m-%d").date()
+    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date()
     end_date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
-    end_date = datetime.strptime("2026-01-13", "%Y-%m-%d").date()
+    end_date = datetime.strptime("2026-01-15", "%Y-%m-%d").date()
 
-    update_props_training_table(config.SEASON_START_DATE, conn)
+    update_minutes_projection_features_table(conn=conn, season_start_date=config.SEASON_START_DATE)
 
     print(f"Done with updating.")

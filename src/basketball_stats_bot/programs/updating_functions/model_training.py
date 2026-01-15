@@ -115,10 +115,10 @@ def train_minutes_projection_model(conn):
                             )
     
     param_dist = {
-        "max_depth": [3, 4, 5], # model complexity
+        "max_depth": [2, 3], # model complexity
         "learning_rate": [0.03, 0.05, 0.1], # shrinks each tree's contribution, lower = more stable, needs more trees
-        "min_child_weight": [1, 5, 10, 20], # controls how much data a tree split must have before XGboost is allowed to create it
-        "n_estimators": [300, 500, 800, 1200], # of trees
+        "min_child_weight": [10, 20, 30], # controls how much data a tree split must have before XGboost is allowed to create it
+        "n_estimators": [200, 400, 600], # of trees
         "gamma": [0, 0.1, 0.25, 0.5, 1.0], # minimum loss reduction to split
         "subsample": [0.7, 0.9], # % of rows per tree
         "colsample_bytree": [0.5, 0.7], # % of features per tree
@@ -695,5 +695,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    train_v9_model(conn=conn)
-    train_v10_model(conn=conn)
+    train_minutes_projection_model(conn=conn)
