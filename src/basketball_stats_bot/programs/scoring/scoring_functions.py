@@ -1703,8 +1703,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
         def find_team_totals_and_player_share(curr_game_logs, stat, team_totals_per_player_df):
 
             if curr_game_logs.empty:
-                
-                print(f"curr_game_logs is empty.. Returning np.nan")
+
                 return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
             col_name = f"PCT_{stat}_USAGE"
@@ -1779,7 +1778,6 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
                 avg_last_10_pct_share += curr_pct
                 avg_last_10_minutes += minutes
         
-
             avg_last_5_pct_share = (
                 np.nan
                 if (len(last_5_player_games) - len(corrupted_in_last_5)) == 0
@@ -1842,14 +1840,14 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
                 average_L3_minus_line, average_L5_minus_line,
                 average_L7_minus_line, average_L10_minus_line
             )
-        
+
         def find_opp_games(player_game_logs_before_curr_date_vs_opp, prop, prop_line):
 
             opp_game_count = len(player_game_logs_before_curr_date_vs_opp)
 
             if player_game_logs_before_curr_date_vs_opp.empty:
 
-                print(f"Could not find gamelogs for current player against opp before {curr_date}")
+                print(f"Could not find gamelogs for current player before {curr_date}")
                 return [], np.nan, np.nan, np.nan, 0
 
             opp_games_for_current_prop = player_game_logs_before_curr_date_vs_opp[prop].to_list()
@@ -1865,7 +1863,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
                 last_5_games_vs_opp_list.append(opp_games_for_current_prop[i])
             
             return last_5_games_vs_opp_list, average_L3_minus_line, average_L7_minus_line, average_L10_minus_line, opp_game_count
-    
+
         today = datetime.strptime(str(curr_date), "%Y-%m-%d").date()
         two_years_from_curr_date = str(today - timedelta(days=730))
 
@@ -2011,10 +2009,10 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
 
             return prob_over
 
-# similar to v9 but uses player share and minutes projection as a feature instead of combined (worse in testing than v9)
-def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_df, minutes_projection, season_game_logs):
+# similar to v9 but uses minutes projection, position_missing_stat, and player share as well as expected last 5_10
+def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn):
 
-    def find_features(game_logs, player_id, conn, curr_date, scoreboard, season_start_date, player_positions_df, team_totals_per_player_df, minutes_projection, season_game_logs):
+    def find_features(game_logs, player_id, conn, curr_date, scoreboard, player_positions_df, team_totals_per_player_df, minutes_projection, season_game_logs):
 
         def find_team_totals_and_player_share(curr_game_logs, stat, team_totals_per_player_df):
 
@@ -2036,7 +2034,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
             l10_game_ids = last_10_player_games['GAME_ID'].to_list()
             l10_pct = last_10_player_games[col_name].to_list()
-            l10_minutes = last_5_player_games['MIN'].to_list()
+            l10_minutes = last_10_player_games['MIN'].to_list()
             l10_games = list(zip(l10_game_ids, l10_pct, l10_minutes))
 
             corrupted_in_last_5 = set()
@@ -2094,7 +2092,6 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
                 avg_last_10_pct_share += curr_pct
                 avg_last_10_minutes += minutes
         
-
             avg_last_5_pct_share = (
                 np.nan
                 if (len(last_5_player_games) - len(corrupted_in_last_5)) == 0
@@ -2130,26 +2127,21 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
             
             return rank / len(positions)
         
-        def find_overall_games(curr_player_game_logs, prop_line):
-
-            player_game_logs_before_curr_date_overall = curr_player_game_logs[
-                (curr_player_game_logs['GAME_DATE'] < curr_date) & # before curr date
-                (curr_player_game_logs['GAME_DATE'] > season_start_date) & # needs to be during this season
-                (curr_player_game_logs['MIN'] > 0) # needs to player more than 0 minutes
-            ]
+        def find_overall_games(player_game_logs_before_curr_date_overall, prop, prop_line):
 
             if player_game_logs_before_curr_date_overall.empty:
 
                 print(f"Couldn't find player game logs before the overall date for {player_name}")
-                return [], np.nan
+                return [], np.nan, np.nan, np.nan, np.nan, np.nan
 
             overall_games_for_current_prop = player_game_logs_before_curr_date_overall[prop].to_list()
-        
-            if not overall_games_for_current_prop:
 
-                return np.nan, np.nan
+            average_L3_minus_line = sum(overall_games_for_current_prop[:3]) / len(overall_games_for_current_prop[:3]) - prop_line
+            average_L5_minus_line = sum(overall_games_for_current_prop[:5]) / len(overall_games_for_current_prop[:5]) - prop_line
+            average_L7_minus_line = sum(overall_games_for_current_prop[:7]) / len(overall_games_for_current_prop[:7]) - prop_line
+            average_L10_minus_line = sum(overall_games_for_current_prop[:10]) / len(overall_games_for_current_prop[:10]) - prop_line
 
-            curr_average_overall_last_20_minus_line= sum(overall_games_for_current_prop) / len(overall_games_for_current_prop) - prop_line
+            average_overall_last_20_minus_line = sum(overall_games_for_current_prop[:20]) / len(overall_games_for_current_prop[:20]) - prop_line
 
             last_5_games_overall = []
 
@@ -2157,115 +2149,83 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
                 last_5_games_overall.append(overall_games_for_current_prop[i])
 
-            return last_5_games_overall, curr_average_overall_last_20_minus_line
+            return (
+                last_5_games_overall, average_overall_last_20_minus_line,
+                average_L3_minus_line, average_L5_minus_line,
+                average_L7_minus_line, average_L10_minus_line
+            )
 
-        def find_opp_games(curr_player_game_logs):
-
-            player_game_logs_before_curr_date_vs_opp = curr_player_game_logs[
-                (curr_player_game_logs['GAME_DATE'] < curr_date) & # before curr date
-                (curr_player_game_logs['OPPOSITION_ID'] == opposition_id) & # if the opposition id is the same as the scoreboard's
-                (curr_player_game_logs['GAME_DATE'] > two_years_from_curr_date) & # needs to be later than two years ago
-                (curr_player_game_logs['MIN'] > 0) # needs to play more than 0 minutes
-            ]
+        def find_opp_games(player_game_logs_before_curr_date_vs_opp, prop, prop_line):
 
             opp_game_count = len(player_game_logs_before_curr_date_vs_opp)
 
+            if player_game_logs_before_curr_date_vs_opp.empty:
+
+                print(f"Could not find gamelogs for current player before {curr_date}")
+                return [], np.nan, np.nan, np.nan, 0
+
             opp_games_for_current_prop = player_game_logs_before_curr_date_vs_opp[prop].to_list()
 
-            if len(opp_games_for_current_prop) == 0:
-
-                for i in range(10):
-
-                    opp_games_for_current_prop.append(None)
+            average_L3_minus_line = sum(opp_games_for_current_prop[:3]) / len(opp_games_for_current_prop[:3]) - prop_line
+            average_L7_minus_line = sum(opp_games_for_current_prop[:7]) / len(opp_games_for_current_prop[:7]) - prop_line
+            average_L10_minus_line = sum(opp_games_for_current_prop[:10]) / len(opp_games_for_current_prop[:10]) - prop_line
             
-            elif len(opp_games_for_current_prop) < 10:
+            last_5_games_vs_opp_list = []
 
-                while len(opp_games_for_current_prop) < 10:
+            for i in range(min(5, opp_game_count)):
 
-                    opp_games_for_current_prop.append(None)
-                
-            average_opp_last_10 = 0
-            games_played = 0
+                last_5_games_vs_opp_list.append(opp_games_for_current_prop[i])
             
-            for i in range(10):
+            return last_5_games_vs_opp_list, average_L3_minus_line, average_L7_minus_line, average_L10_minus_line, opp_game_count
+
+        def find_position_missing_stats(conn, curr_date, positions, team_id, stat):
+
+            dfs = []
+
+            for position in positions:
+
+                df = pd.read_sql_query("""
+
+                        SELECT d.*
+                        FROM DNPS d
+                        JOIN PLAYER_POSITIONS p
+                            ON p.PLAYER_ID = d.PLAYER_ID
+                        WHERE p.POSITION = ?
+                        AND d.GAME_DATE = ?
+                        AND d.TEAM_ID = ?
+                                    
+                    """, conn, params=(position, str(curr_date), team_id))
+
+                if not df.empty:
+
+                    dfs.append(df)
             
-                if opp_games_for_current_prop[i] != None:
+            if not dfs:
 
-                    average_opp_last_10 += opp_games_for_current_prop[i]
-                    games_played += 1
+                return 0
+
+            cat = pd.concat(dfs, ignore_index=True)
+
+            total_pos_stat = cat.drop_duplicates('PLAYER_ID')[f'AVERAGE_{stat}'].sum()
             
-            if games_played > 0:
-
-                    average_opp_last_10 = average_opp_last_10 / games_played - line
-            
-            else:
-                
-                average_opp_last_10 = np.nan
-
-            last_5_games_vs_opp = []
-            
-            for i in range(min(5, len(opp_games_for_current_prop))):
-
-                last_5_games_vs_opp.append(opp_games_for_current_prop[i])
-            
-            return last_5_games_vs_opp, average_opp_last_10, opp_game_count
-
-        def find_overall_averages(curr_game_logs, curr_date, stat, prop_line):
-
-            games_before_curr_date = curr_game_logs[curr_game_logs['GAME_DATE'] < str(curr_date)]
-
-            games_before_curr_date = games_before_curr_date.sort_values("GAME_DATE", ascending=True)
-
-            if games_before_curr_date.empty:
-
-                print(f"Could not find gameloogs for current player before {curr_date}")
-                return np.nan, np.nan, np.nan, np.nan, 9
-
-            games_played = len(games_before_curr_date)
-
-            average_L3_minus_line = games_before_curr_date.iloc[:3][stat].sum() / len(games_before_curr_date.iloc[:3][stat]) - prop_line
-            average_L5_minus_line = games_before_curr_date.iloc[:5][stat].sum() / len(games_before_curr_date.iloc[:5][stat]) - prop_line
-            average_L7_minus_line = games_before_curr_date.iloc[:7][stat].sum() / len(games_before_curr_date.iloc[:7][stat]) - prop_line
-            average_L10_minus_line = games_before_curr_date.iloc[:10][stat].sum() / len(games_before_curr_date.iloc[:10][stat]) - prop_line
-
-            return average_L3_minus_line, average_L5_minus_line, average_L7_minus_line, average_L10_minus_line, games_played
-
-        def find_opp_averages(curr_game_logs, curr_date, stat, prop_line):
-
-            games_before_curr_date = curr_game_logs[curr_game_logs['GAME_DATE'] < str(curr_date)]
-
-            games_before_curr_date = games_before_curr_date.sort_values("GAME_DATE", ascending=True)
-
-            if games_before_curr_date.empty:
-
-                print(f"Could not find gameloogs for current player before {curr_date}")
-                return np.nan, np.nan
-
-            average_L3_minus_line = games_before_curr_date.iloc[:3][stat].sum() / len(games_before_curr_date.iloc[:3][stat]) - prop_line
-            average_L7_minus_line = games_before_curr_date.iloc[:7][stat].sum() / len(games_before_curr_date.iloc[:7][stat]) - prop_line
-
-            return average_L3_minus_line, average_L7_minus_line
+            return total_pos_stat
 
         today = datetime.strptime(str(curr_date), "%Y-%m-%d").date()
         two_years_from_curr_date = str(today - timedelta(days=730))
 
-        curr_player_game_logs = game_logs[
-            (game_logs['PLAYER_ID'] == player_id) &
-            (game_logs['GAME_DATE'] > str(two_years_from_curr_date))
-
-        ]
-
         curr_season_player_game_logs = season_game_logs[
 
             (season_game_logs['PLAYER_ID'] == player_id) &
-            (season_game_logs['GAME_DATE'] < str(curr_date))
+            (season_game_logs['GAME_DATE'] < str(curr_date)) &
+            (season_game_logs['GAME_DATE'] > config.SEASON_START_DATE) &
+            (season_game_logs['MIN'] > 0)
 
         ]
 
         curr_player_scoreboard = scoreboard[scoreboard['PLAYER_ID'] == player_id]
+        team_id = curr_player_scoreboard['TeamID'].iloc[0]
         player_name = curr_player_scoreboard['PLAYER'].iloc[0]
         opposition_id = curr_player_scoreboard['opposition_team_id'].iloc[0]
-        game_id = curr_player_scoreboard['GAME_ID'].iloc[0]
         venue = (
             0
             if '@' in scoreboard[scoreboard['PLAYER_ID'] == player_id]['MATCHUP'].iloc[0]
@@ -2273,46 +2233,60 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
         )
         player_positions = player_positions_df[player_positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
 
+        position_missing_stat = find_position_missing_stats(conn, curr_date, player_positions, prop)
+
         if len(player_positions) == 0:
 
             print(f"Could not find player positions for {player_name} ({player_id}) Check scoring_functions.py Line 1511")
             sys.exit(1)
 
+        curr_player_game_logs_vs_opp = game_logs[
+            (game_logs['PLAYER_ID'] == player_id) &
+            (game_logs['GAME_DATE'] >= str(two_years_from_curr_date)) &
+            (game_logs['OPPOSITION_ID'] == opposition_id) &
+            (game_logs['MIN'] > 0)
+        ]
+
         curr_team_total_per_player = team_totals_per_player_df[
-        (team_totals_per_player_df['PLAYER_ID'] == player_id) &
-        (team_totals_per_player_df['GAME_ID'] == game_id) &
-        (team_totals_per_player_df['MIN'] > 0)
+            (team_totals_per_player_df['PLAYER_ID'] == player_id) &
+            (team_totals_per_player_df['MIN'] > 0)
         ]
 
         curr_team_total_per_player = curr_team_total_per_player.sort_values('GAME_DATE', ascending=False)
+        curr_player_game_logs_vs_opp = curr_player_game_logs_vs_opp.sort_values('GAME_DATE', ascending=False)
+        curr_season_player_game_logs = curr_season_player_game_logs.sort_values('GAME_DATE', ascending=False)
 
         (avg_last_5_pct_share, avg_last_10_pct_share, 
          avg_last_5_team_totals, avg_last_10_team_totals, 
          avg_last_5_minutes, avg_last_10_minutes
         ) = find_team_totals_and_player_share(curr_season_player_game_logs, prop, curr_team_total_per_player)
+        
         def_rank = find_defensive_rank(conn, player_positions, current_opposition_id, prop)
-        last_5_games_overall, average_overall_last_20_minus_line = find_overall_games(curr_player_game_logs=curr_player_game_logs, prop_line=line)
-        last_5_games_vs_opp, average_opp_last_10, opp_game_count = find_opp_games(curr_player_game_logs=curr_player_game_logs)
-        average_L3_overall_minus_line, average_L5_overall_minus_line, average_L7_overall_minus_line, average_L10_overall_minus_line, games_played = find_overall_averages(curr_season_player_game_logs, curr_date, prop, line)
-        average_L3_vs_opp_minus_line, average_L7_vs_opp_minus_line = find_opp_averages(curr_player_game_logs, curr_date, prop, line) 
+
+        (
+            last_5_games_overall, average_overall_last_20_minus_line,
+            average_L3_overall_minus_line, average_L5_overall_minus_line,
+            average_L7_overall_minus_line, average_L10_overall_minus_line
+        ) = find_overall_games(player_game_logs_before_curr_date_overall=curr_season_player_game_logs, prop=prop, prop_line=line)
+
+        (last_5_games_vs_opp_list, 
+         average_L3_vs_opp_minus_line, average_L7_vs_opp_minus_line, 
+         average_L10_vs_opp_minus_line, opp_game_count) = find_opp_games(player_game_logs_before_curr_date_vs_opp=curr_player_game_logs_vs_opp, prop=prop, prop_line=line)
 
 
         if last_5_games_overall == -2:
 
             return -2
 
-
-        if np.isnan(minutes_projection):
+        if np.isnan(minutes_projection) or avg_last_5_minutes == 0 or np.isnan(avg_last_5_pct_share):
 
             expected_from_last_5_minus_line = np.nan
             expected_from_last_10_minus_line = np.nan
         
         else:
 
-            expected_from_last_5_minus_line = ((avg_last_5_team_totals / 240) * minutes_projection * avg_last_5_pct_share) - line
-            expected_from_last_10_minus_line = ((avg_last_10_team_totals / 240) * minutes_projection * avg_last_10_pct_share) - line
-
-        
+            expected_from_last_5_minus_line = (((avg_last_5_team_totals * avg_last_5_pct_share) / avg_last_5_minutes) * minutes_projection) - line
+            expected_from_last_10_minus_line = (((avg_last_10_team_totals * avg_last_10_pct_share) / avg_last_10_minutes) * minutes_projection) - line
 
         last_game = (
             last_5_games_overall[0] - line
@@ -2320,8 +2294,8 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
             else np.nan
         )
         last_game_vs_opp = (
-            last_5_games_vs_opp[0] - line
-            if last_5_games_vs_opp[0] != None
+            last_5_games_vs_opp_list[0] - line
+            if len(last_5_games_vs_opp_list) > 0
             else np.nan
         )
 
@@ -2329,28 +2303,26 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
             
             prop: {
                 'LAST_GAME': last_game,
-                "AVG_LAST_3_OVERALL": average_L3_overall_minus_line,
-                "AVG_LAST_5_OVERALL": average_L5_overall_minus_line,
-                "AVG_LAST_7_OVERALL": average_L7_overall_minus_line,
-                "AVG_LAST_10_OVERALL": average_L10_overall_minus_line,
+                "AVG_LAST_3_OVERALL": float(average_L3_overall_minus_line),
+                "AVG_LAST_5_OVERALL": float(average_L5_overall_minus_line),
+                "AVG_LAST_7_OVERALL": float(average_L7_overall_minus_line),
+                "AVG_LAST_10_OVERALL": float(average_L10_overall_minus_line),
                 'AVERAGE_LAST_20': average_overall_last_20_minus_line,
                 'LAST_GAME_VS_OPP': last_game_vs_opp,
                 "AVG_LAST_3_VS_OPP": average_L3_vs_opp_minus_line,
                 "AVG_LAST_7_VS_OPP": average_L7_vs_opp_minus_line,
-                'AVERAGE_LAST_10_VS_OPP': average_opp_last_10,
+                'AVERAGE_LAST_10_VS_OPP': average_L10_vs_opp_minus_line,
                 'DEF_RANK': float(def_rank),
                 'OPP_GAME_COUNT': opp_game_count,
                 'MINUTES_PROJECTION': minutes_projection,
-                f'AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE': expected_from_last_5_minus_line,
-                f'AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE': expected_from_last_10_minus_line,
+                'POSITION_MISSING_STAT': position_missing_stat,
+                f'AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE': float(expected_from_last_5_minus_line),
+                f'AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE': float(expected_from_last_10_minus_line),
                 'VENUE': venue
             }
         }
     
         return features_dict
-
-    conn = sqlite3.connect(config.DB_PATH)
-    season_start_date = '2025-10-21'
 
     game_logs = game_logs.sort_values("GAME_DATE", ascending=False)
 
@@ -2359,7 +2331,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
     today_features = {}
 
-    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, season_start_date, player_positions, team_totals_df, minutes_projection, season_game_logs)}
+    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
 
     for player_id, values in today_features.items():
 

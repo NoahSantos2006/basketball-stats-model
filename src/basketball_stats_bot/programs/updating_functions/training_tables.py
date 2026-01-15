@@ -496,6 +496,38 @@ def update_props_training_table(season_start_date, conn):
         
         return last_5_games_vs_opp_list, average_L3_minus_line, average_L7_minus_line, average_L10_minus_line, opp_game_count
     
+    def find_position_missing_stats(conn, curr_date, positions, team_id, stat):
+
+        dfs = []
+
+        for position in positions:
+
+            df = pd.read_sql_query("""
+
+                    SELECT d.*
+                    FROM DNPS d
+                    JOIN PLAYER_POSITIONS p
+                        ON p.PLAYER_ID = d.PLAYER_ID
+                    WHERE p.POSITION = ?
+                    AND d.GAME_DATE = ?
+                    AND d.TEAM_ID = ?
+                                
+                """, conn, params=(position, str(curr_date), team_id))
+
+            if not df.empty:
+
+                dfs.append(df)
+        
+        if not dfs:
+
+            return 0
+
+        cat = pd.concat(dfs, ignore_index=True)
+
+        total_pos_stat = cat.drop_duplicates('PLAYER_ID')[f'AVERAGE_{stat}'].sum()
+        
+        return total_pos_stat
+
     cursor = conn.cursor()
 
     props = [
@@ -537,7 +569,7 @@ def update_props_training_table(season_start_date, conn):
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     check_for_latest_date = pd.read_sql_query("SELECT * FROM PROPS_TRAINING_TABLE ORDER BY GAME_DATE DESC", conn)
     latest_date_str = check_for_latest_date['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime("2026-01-11", "%Y-%m-%d").date() + timedelta(days=1)
 
     # all games during and before the curr_date ordered by game date descending
     game_logs = pd.read_sql_query('SELECT * FROM player_game_logs ORDER BY GAME_DATE DESC', conn)
@@ -694,6 +726,21 @@ def update_props_training_table(season_start_date, conn):
 
                 stat_line_for_current_game = player_box_score[prop].iloc[0]
 
+                if prop not in {'BLK', 'STL'}:
+                
+                    pos_mis_stat = find_position_missing_stats(conn, str(curr_date), player_positions, int(team_id), prop)
+
+                    cursor.execute("""
+
+                    UPDATE PROPS_TRAINING_TABLE
+                    SET 
+                        POSITION_MISSING_STAT = ?
+                    WHERE PROP = ?
+                    AND GAME_DATE = ?
+                    AND PLAYER_ID = ?
+                                
+                    """, (pos_mis_stat, prop, str(curr_date), player_id))
+
                 if stat_line_for_current_game > prop_line:
 
                     result = 1
@@ -799,7 +846,8 @@ def update_props_training_table(season_start_date, conn):
                     'TARGET': int(result),
                     'VENUE': matchup,
                     'GAMES_PLAYED_THIS_SEASON': games_played_this_season,
-                    'MINUTES_PROJECTION': float(minutes_projection)
+                    'MINUTES_PROJECTION': float(minutes_projection),
+                    "POSITION_MISSING_STAT": pos_mis_stat
 
                 }
 
@@ -1174,7 +1222,6 @@ if __name__ == "__main__":
     curr_date = datetime.strptime("2026-10-21", "%Y-%m-%d").date()
     end_date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     end_date = datetime.strptime("2026-01-13", "%Y-%m-%d").date()
-
 
     update_props_training_table(config.SEASON_START_DATE, conn)
 

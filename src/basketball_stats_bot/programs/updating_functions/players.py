@@ -130,12 +130,9 @@ def update_dnps_from_bref(conn, season_start_date, curr_date):
     cursor = conn.cursor()
 
     today_scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?", conn, params=(curr_date,))
-
     current_team_ids = set(today_scoreboard.drop_duplicates("TeamID")['TeamID'].to_list())
-
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(config.SEASON_START_DATE,))
     team_stats = pd.read_sql_query("SELECT * FROM TEAM_STATS_2025_2026", conn)
-
     team_finding = season_game_logs.drop_duplicates("TEAM_ID")
 
     team_names = team_finding['TEAM_NAME'].to_list()
@@ -147,7 +144,6 @@ def update_dnps_from_bref(conn, season_start_date, curr_date):
     players = injury_df['Player'].to_list()
     teams = injury_df['Team'].to_list()
     desc = injury_df['Description'].to_list()
-
     player_team_desc = list(zip(players, teams, desc))
 
     out = []
@@ -159,25 +155,24 @@ def update_dnps_from_bref(conn, season_start_date, curr_date):
             if desc[:3] == "Out":
 
                 out.append((player_name, team))
-        
-    parsed = []
+
+                player_name = clean_name(player_name)
+
+                player_game_logs = season_game_logs[season_game_logs['NAME_CLEAN'] == player_name]
+
+                if player_game_logs.empty:
+
+                    print(f"Couldn't find game logs for {player_name}")
+                    sys.exit(1)
+                
+                player_id = player_game_logs['PLAYER_ID'].iloc[0]
+
+                out.append((player_name, int(player_id)))
     
-    for player_name, team in out:
+    cursor.execute("DELETE FROM DNPS WHERE FROM_NBAINJURIES = 1")
+    conn.commit()
 
-        player_name = clean_name(player_name)
-
-        player_game_logs = season_game_logs[season_game_logs['NAME_CLEAN'] == player_name]
-
-        if player_game_logs.empty:
-
-            print(f"Couldn't find game logs for {player_name}")
-            sys.exit(1)
-        
-        player_id = player_game_logs['PLAYER_ID'].iloc[0]
-
-        parsed.append((player_name, int(player_id)))
-
-    for player_name, player_id in parsed:
+    for player_name, player_id in out:
 
         curr_player_scoreboard = today_scoreboard[today_scoreboard['PLAYER_ID'] == player_id]
 
@@ -347,7 +342,7 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
                 injury_df = injury.get_reportdata(
                     date, 
                     return_df=True,
-                    timeout=(5, 10),
+                    timeout=(5, 30),
                     headers={
                     "User-Agent": "Mozilla/5.0",
                     "Accept": "application/pdf"
@@ -1593,4 +1588,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    update_dnps_from_bref(conn, config.SEASON_START_DATE, "2026-01-14")
+    update_dnps_from_nbainjuries(conn, config.SEASON_START_DATE, "2026-01-14")

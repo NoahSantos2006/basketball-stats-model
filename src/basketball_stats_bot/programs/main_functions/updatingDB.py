@@ -9,8 +9,6 @@ from basketball_stats_bot.config import load_config
 
 from basketball_stats_bot.programs.updating_functions.model_training import (
     train_minutes_projection_model, 
-    train_v7_model,
-    train_v8_model,
     train_v9_model
 )
 from basketball_stats_bot.programs.updating_functions.players import (
@@ -19,6 +17,7 @@ from basketball_stats_bot.programs.updating_functions.players import (
     update_scoreboard_to_team_roster,
     update_dnps_from_nbainjuries,
     update_team_totals_per_player,
+    update_dnps_from_bref
 )
 from basketball_stats_bot.programs.updating_functions.team_updating import (
     update_defense_vs_position,
@@ -45,14 +44,12 @@ def updateDB(API_KEY, curr_date, current_season_start_date, conn, current_season
     update_defense_vs_position(conn=conn, current_season_start_date=current_season_start_date)
     update_team_stats(conn=conn)
     update_dnps_table(conn=conn, season_start_date=current_season_start_date)
-    update_dnps_from_nbainjuries(conn=conn, season_start_date=current_season_start_date, curr_date=curr_date)
+    update_dnps_from_bref(conn=conn, season_start_date=current_season_start_date, curr_date=curr_date)
 
     update_minutes_projection_features_table(conn=conn, season_start_date=current_season_start_date)
     update_props_training_table(season_start_date=current_season_start_date, conn=conn)
 
     train_minutes_projection_model(conn=conn)
-    # train_v7_model(conn=conn)
-    # train_v8_model(conn=conn)
     train_v9_model(conn=conn)
 
     print(f"SQL database updated. ({curr_date})")
