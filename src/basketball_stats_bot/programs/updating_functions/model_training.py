@@ -700,4 +700,7 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    train_v10_model(conn=conn)
+    model = joblib.load(r"C:\Users\noahs\.vscode\basketball_stats_model\basketball-stats-model\src\basketball_stats_bot\data\XGBoost\minutes_projection_model.pkl")
+
+    xgb.plot_importance(model)
+    plt.show()

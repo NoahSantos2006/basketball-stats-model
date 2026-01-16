@@ -932,26 +932,23 @@ def update_minutes_projection_features_table(conn, season_start_date):
             (season_game_logs['GAME_DATE'] < str(curr_date)) &
             (season_game_logs['PLAYER_ID'] == player_id) &
             (season_game_logs['MIN'] > 0)
-        ].sort_values("GAME_DATE", ascending=False)
+        ].sort_values("GAME_DATE", ascending=False).iloc[:5]
         
         minutes_list = curr_player_game_logs['MIN'].to_list()
-
-        last_5 = []
 
         if len(minutes_list) == 0:
 
             print(f"Could not find games with minutes before {curr_date} for {player_name}.")
             return np.nan
-        
-        last_5 = minutes_list[:5]
-
-        if len(last_5) < 2:
+    
+        if len(curr_player_game_logs) < 2:
 
             return np.nan
-        
-        [25, 30, 23, 30, 23]
 
-        slope = (last_5[0] - last_5[-1]) / (len(last_5) - 1)
+        minutes = curr_player_game_logs['MIN'].values
+        games = np.arange(len(minutes))
+
+        slope = np.polyfit(games, minutes, 1)[0]
 
         return slope
 
@@ -1149,7 +1146,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
     positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
 
     latest_date_str = pd.read_sql_query("SELECT * FROM MINUTES_PROJECTION_TRAINING ORDER BY GAME_DATE DESC LIMIT 1", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date()
     end_date = datetime.now(ZoneInfo("America/New_York")).date()
     cursor = conn.cursor()
 

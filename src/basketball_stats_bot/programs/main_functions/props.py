@@ -380,29 +380,28 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                 return average_last_3, average_last_5, average_last_7, average_last_10
 
             def minutes_trend_5(curr_date, player_id, player_name, season_game_logs):
-                
+        
                 curr_player_game_logs = season_game_logs[
                     (season_game_logs['GAME_DATE'] < str(curr_date)) &
                     (season_game_logs['PLAYER_ID'] == player_id) &
                     (season_game_logs['MIN'] > 0)
-                ].sort_values("GAME_DATE", ascending=False)
+                ].sort_values("GAME_DATE", ascending=False).iloc[:5]
                 
                 minutes_list = curr_player_game_logs['MIN'].to_list()
-
-                last_5 = []
 
                 if len(minutes_list) == 0:
 
                     print(f"Could not find games with minutes before {curr_date} for {player_name}.")
                     return np.nan
-                
-                last_5 = minutes_list[:5]
-
-                if len(last_5) < 2:
+            
+                if len(curr_player_game_logs) < 2:
 
                     return np.nan
 
-                slope = (last_5[0] - last_5[-1]) / (len(last_5) - 1)
+                minutes = curr_player_game_logs['MIN'].values
+                games = np.arange(len(minutes))
+
+                slope = np.polyfit(games, minutes, 1)[0]
 
                 return slope
 
