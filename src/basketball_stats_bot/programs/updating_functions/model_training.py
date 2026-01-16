@@ -647,6 +647,12 @@ def train_v10_model(conn):
 
         best_params = search.best_params_
 
+        testing_params_path = os.path.join(config.XGBOOST_PATH, "testing_best_params")
+
+        if not os.path.isdir(testing_params_path):
+
+            os.mkdir(testing_params_path)
+
         best_params_path = os.path.join(config.XGBOOST_PATH, "testing_best_params", f"{prop}_best_params.pkl")
         joblib.dump(best_params, best_params_path)
 

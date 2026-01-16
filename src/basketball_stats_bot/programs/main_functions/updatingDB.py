@@ -44,7 +44,7 @@ def updateDB(API_KEY, curr_date, current_season_start_date, conn, current_season
     update_defense_vs_position(conn=conn, current_season_start_date=current_season_start_date)
     update_team_stats(conn=conn)
     update_dnps_table(conn=conn, season_start_date=current_season_start_date)
-    update_dnps_from_bref(conn=conn, season_start_date=current_season_start_date, curr_date=curr_date)
+    update_dnps_from_nbainjuries(conn=conn, season_start_date=current_season_start_date, curr_date=curr_date)
 
     update_minutes_projection_features_table(conn=conn, season_start_date=current_season_start_date)
     update_props_training_table(season_start_date=current_season_start_date, conn=conn)

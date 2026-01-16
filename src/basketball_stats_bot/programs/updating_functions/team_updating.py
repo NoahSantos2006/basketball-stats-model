@@ -124,7 +124,7 @@ def update_team_stats(conn):
     nba_api_game_ids = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS", conn)
     
     latest_date_str = team_stats['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
     end_date = datetime.now(ZoneInfo("America/New_York")).date()
 
     while curr_date < end_date:

@@ -14,10 +14,8 @@ import numpy as np
 import tabula
 import PyPDF2
 
+import nbainjuries
 from nbainjuries import injury
-import nbainjuries.injury as injury_mod
-from nbainjuries._exceptions import URLRetrievalError, LocalRetrievalError
-from nbainjuries._util import __concat_injreppgs, _validate_headers, _pagect_localpdf, __clean_injrep
 import tempfile
 from pathlib import Path
 from requests.adapters import HTTPAdapter
@@ -245,128 +243,6 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
         return 
     print(f"Finding injuries from NBAINJURIES API on {curr_date}...")
 
-    # changes timestamp because nbainjuries api isn't fully updated
-    def _gen_url_fixed(timestamp):
-        URLstem_date = timestamp.date().strftime('%Y-%m-%d')
-        URLstem_time = timestamp.strftime('%I_%M%p')
-
-        return injury_mod._constants.urlstem_injreppdf.replace(
-            '*',
-            URLstem_date + '_' + URLstem_time
-        )
-
-    def _gen_filepath_fixed(timestamp, directorypath):
-        URLstem_date = timestamp.date().strftime('%Y-%m-%d')
-        URLstem_time = timestamp.strftime('%I_%M%p')
-        filename = f'Injury-Report_{URLstem_date}_{URLstem_time}.pdf'
-        return injury_mod.path.join(directorypath, filename)
-
-    def _validate_injrepurl_fixed(filepath: str | PathLike, **kwargs) -> requests.Response:
-        """
-        Validate and retrieve injury report PDF from nba.com
-        """
-        session = requests.Session()
-
-        retries = Retry(
-            total=5,
-            backoff_factor=1.5,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET"],
-        )
-
-        session.mount("https://", HTTPAdapter(max_retries=retries))
-
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            "Accept": "application/pdf",
-        }
-
-        headers.update(kwargs.get("headers", {}))
-
-        try:
-            resp = session.get(filepath, headers=headers, stream=True, timeout=(5, 60))
-            resp.raise_for_status()
-            print(f"Validated {Path(filepath).stem}.")
-            return resp
-        except requests.exceptions.RequestException as e_gen:
-            print(f"Failed validation - {Path(filepath).stem}.")
-            raise URLRetrievalError(filepath, e_gen)
-
-    def _extract_injrepurl_fixed(filepath: str | PathLike, area_headpg: list, cols_headpg: list,
-                        area_otherpgs: list | None = None, cols_otherpgs: list | None = None,
-                        **kwargs) -> pd.DataFrame:
-        """
-        Extract injury report from URL (nba.com) using local PDF buffering
-        NOTICE:
-        Tabula must NEVER receive a URL directly.
-        NBA CDN intermittently stalls connections and Java has no timeout.
-        Always download PDFs locally before parsing.
-        """
-
-        resp = _validate_injrepurl_fixed(filepath, **kwargs)
-
-        # -----------------------------
-        # Save PDF locally (CRITICAL)
-        # -----------------------------
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-            for chunk in resp.iter_content(chunk_size=8192):
-                if chunk:
-                    tmp.write(chunk)
-
-        try:
-            pdf_reader = PyPDF2.PdfReader(str(tmp_path))
-            pdf_numpgs = len(pdf_reader.pages)
-
-            if area_otherpgs is None:
-                area_otherpgs = area_headpg
-            if cols_otherpgs is None:
-                cols_otherpgs = cols_headpg
-
-            # First page
-            dfs_headpg = tabula.read_pdf(
-                str(tmp_path),
-                stream=True,
-                area=area_headpg,
-                columns=cols_headpg,
-                pages=1
-            )
-            _validate_headers(dfs_headpg[0])
-
-            # Following pages
-            dfs_otherpgs = []
-            if pdf_numpgs >= 2:
-                dfs_otherpgs = tabula.read_pdf(
-                    str(tmp_path),
-                    stream=True,
-                    area=area_otherpgs,
-                    columns=cols_otherpgs,
-                    pages=f"2-{pdf_numpgs}",
-                    pandas_options={"header": None}
-                )
-
-            df_rawdata = __concat_injreppgs(
-                dflist_headpg=dfs_headpg,
-                dflist_otherpgs=dfs_otherpgs
-            )
-            df_cleandata = __clean_injrep(df_rawdata)
-            return df_cleandata
-
-        finally:
-            # Always clean up temp file
-            try:
-                tmp_path.unlink(missing_ok=True)
-            except Exception:
-                pass
-    
-    injury_mod.validate_injrepurl = _validate_injrepurl_fixed
-    injury_mod.extract_injrepurl = _extract_injrepurl_fixed
-    injury_mod._gen_url =  _gen_url_fixed
-    injury_mod._gen_filepath = _gen_filepath_fixed
 
     def find_today_injuries(conn, curr_date):
 
@@ -452,15 +328,7 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
             try:
 
-                injury_df = injury.get_reportdata(
-                    date, 
-                    return_df=True,
-                    timeout=(5, 30),
-                    headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "application/pdf"
-                    }
-                )
+                injury_df = injury.get_reportdata(date, return_df=True)
                 break
             
             except Timeout as t:
@@ -477,10 +345,11 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
             print(f"Could not find injuries for {year}-{month}-{day}")
             sys.exit(1)
 
-        curr_date_changed = datetime.strftime(curr_date, "%m/%d/%Y")
+        curr_date_changed= datetime.strptime(curr_date, "%Y-%m-%d").strftime("%m/%d/%Y")
         curr_injury_df = injury_df[injury_df['Game Date'] == str(curr_date_changed)]
 
         player_status_dict = parse_nba_injuries(curr_injury_df, player_names_from_player_game_logs_df)
+
 
         return player_status_dict
 
@@ -664,7 +533,7 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
             cursor.execute(f"INSERT OR REPLACE INTO DNPS VALUES ({placeholders})", stats)
     
-    conn.commit()
+        conn.commit()
 
     print(f"Finished updating DNPS from nbainjuries api on {curr_date}")
 
@@ -1653,7 +1522,7 @@ def update_team_totals_per_player(conn):
 
                         """, (float(int(stat_recorded) / curr_team_total_per_player_stat), curr_pid, curr_gid))
 
-                conn.commit()
+                    conn.commit()
 
                 player_id = hashmap['PLAYER_ID']
                 minutes = curr_box_score[curr_box_score['PLAYER_ID'] == player_id]['MIN'].iloc[0]
@@ -1701,4 +1570,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    update_dnps_from_nbainjuries(conn, config.SEASON_START_DATE, "2026-01-15")
+    update_team_totals_per_player(conn)
