@@ -402,7 +402,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
                     return np.nan
 
-                slope = (last_5[-1] - last_5[0]) / (len(last_5) - 1)
+                slope = (last_5[0] - last_5[-1]) / (len(last_5) - 1)
 
                 return slope
 

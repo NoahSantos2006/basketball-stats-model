@@ -9,7 +9,6 @@ from xgboost import XGBClassifier, XGBRegressor, plot_importance
 import sqlite3
 import os
 import sys
-import matplotlib.pyplot as plt
 
 from basketball_stats_bot.config import load_config
 
@@ -695,4 +694,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    train_minutes_projection_model(conn=conn)
+    train_v10_model(conn=conn)

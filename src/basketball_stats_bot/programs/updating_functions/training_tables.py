@@ -875,56 +875,56 @@ def update_minutes_projection_features_table(conn, season_start_date):
 
     def avg_last_3_5_7_10(game_logs, player_id, curr_date):
 
-                game_logs = game_logs[
-                    (game_logs['GAME_DATE'] < str(curr_date)) &
-                    (game_logs['PLAYER_ID'] == player_id) &
-                    (game_logs['MIN'] > 0)
-                ].sort_values("GAME_DATE", ascending=False)
+        game_logs = game_logs[
+            (game_logs['GAME_DATE'] < str(curr_date)) &
+            (game_logs['PLAYER_ID'] == player_id) &
+            (game_logs['MIN'] > 0)
+        ].sort_values("GAME_DATE", ascending=False)
 
-                minutes_list = game_logs['MIN'].to_list()
-                last_3 = []
-                last_5 = []
-                last_7 = []
-                last_10 = []
+        minutes_list = game_logs['MIN'].to_list()
+        last_3 = []
+        last_5 = []
+        last_7 = []
+        last_10 = []
 
-                if len(minutes_list) == 0:
+        if len(minutes_list) == 0:
 
-                    return np.nan, np.nan, np.nan, np.nan
+            return np.nan, np.nan, np.nan, np.nan
 
-                i = 0
+        i = 0
 
-                while i < min(10, len(minutes_list)):
+        while i < min(10, len(minutes_list)):
 
-                    if len(last_3) < 3:
-                        last_3.append(minutes_list[i])       
-                    if len(last_5) < 5:
-                        last_5.append(minutes_list[i])
-                    if len(last_7) < 7:
-                        last_7.append(minutes_list[i])
-                    if len(last_10) < 10:
-                        last_10.append(minutes_list[i])
+            if len(last_3) < 3:
+                last_3.append(minutes_list[i])       
+            if len(last_5) < 5:
+                last_5.append(minutes_list[i])
+            if len(last_7) < 7:
+                last_7.append(minutes_list[i])
+            if len(last_10) < 10:
+                last_10.append(minutes_list[i])
 
-                    i += 1
-                
-                curr_average = sum(minutes_list) / len(minutes_list)
+            i += 1
+        
+        curr_average = sum(minutes_list) / len(minutes_list)
 
-                while len(last_10) < 10:
+        while len(last_10) < 10:
 
-                    if len(last_3) < 3:
-                        last_3.append(curr_average)       
-                    if len(last_5) < 5:
-                        last_5.append(curr_average)
-                    if len(last_7) < 7:
-                        last_7.append(curr_average)
-                    if len(last_10) < 10:
-                        last_10.append(curr_average)
+            if len(last_3) < 3:
+                last_3.append(curr_average)       
+            if len(last_5) < 5:
+                last_5.append(curr_average)
+            if len(last_7) < 7:
+                last_7.append(curr_average)
+            if len(last_10) < 10:
+                last_10.append(curr_average)
 
-                average_last_3 = float(sum(last_3) / 3)
-                average_last_5 = float(sum(last_5) / 5)
-                average_last_7 = float(sum(last_7) / 7)
-                average_last_10 = float(sum(last_10) / 10)
+        average_last_3 = float(sum(last_3) / 3)
+        average_last_5 = float(sum(last_5) / 5)
+        average_last_7 = float(sum(last_7) / 7)
+        average_last_10 = float(sum(last_10) / 10)
 
-                return average_last_3, average_last_5, average_last_7, average_last_10
+        return average_last_3, average_last_5, average_last_7, average_last_10
 
     def minutes_trend_5(curr_date, player_id, player_name, season_game_logs):
         
@@ -948,8 +948,10 @@ def update_minutes_projection_features_table(conn, season_start_date):
         if len(last_5) < 2:
 
             return np.nan
+        
+        [25, 30, 23, 30, 23]
 
-        slope = (last_5[-1] - last_5[0]) / (len(last_5) - 1)
+        slope = (last_5[0] - last_5[-1]) / (len(last_5) - 1)
 
         return slope
 

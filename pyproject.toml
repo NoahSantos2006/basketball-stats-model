@@ -25,6 +25,9 @@ dependencies = [
     "xgboost",
     "matplotlib",
     "nbainjuries",
+    "lxml",
+    "tabula",
+    "PyPDF2"
 ]
 
 [tool.setuptools]
