@@ -26,8 +26,6 @@ dependencies = [
     "matplotlib",
     "nbainjuries",
     "lxml",
-    "tabula",
-    "PyPDF2"
 ]
 
 [tool.setuptools]
