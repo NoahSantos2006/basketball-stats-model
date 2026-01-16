@@ -1,0 +1,3 @@
+[submodule "nbainjuries"]
+	path = nbainjuries
+	url = https://github.com/NoahSantos2006/nbainjuries.git
