@@ -4,6 +4,7 @@ import sys
 import requests
 import json
 import unicodedata
+import numpy as np
 
 from basketball_stats_bot.config import load_config
 
@@ -25,17 +26,19 @@ def update_player_positions(con, year):
         "PJ Washington Jr": "PJ Washington",
         "Bobby Portis Jr": "Bobby Portis",
         "Bruce Brown Jr": "Bruce Brown",
-        "KJ Martin Jr": "KJ Martin"
+        "KJ Martin Jr": "KJ Martin",
+        "GG Jackson II": "GG Jackson",
+        "Xavier Tillman Sr": "Xavier Tillman",
+        "Tolu Smith III": "Tolu Smith",
+        "Yongxi Cui": "Cui Yongxi",
+        "Terence Davis II": "Terence Davis",
+        "Boo Buie": "Boo Buie III",
+        "Nikola Durisic": "Nikola Đurisic"
     }
 
-    # df = pd.read_html(f"https://www.fantasypros.com/nba/stats/overall.php?year={year}")[0]
-    # df.to_json("fantasypros2024_player_positions.json", orient='records', indent=4)
+    df = pd.read_html(f"https://www.fantasypros.com/nba/stats/overall.php?year={year}")[0]
 
     game_logs = pd.read_sql_query("SELECT * FROM player_game_logs", con)
-
-    with open(f"fantasypros{year}_player_positions.json", "r") as f:
-
-        df = pd.DataFrame(json.load(f))
 
     players = df['Player'].to_list()
 
@@ -59,9 +62,10 @@ def update_player_positions(con, year):
         desc = desc.split("-")
         positions = desc[1].strip().split(')')[0].split(",")
 
-        if positions:
+        if positions and player_name:
 
             player_positions[player_name] = positions
+
     
     for player_name, positions in player_positions.items():
 
@@ -86,10 +90,10 @@ def update_player_positions(con, year):
 
             cur.execute("""
 
-                INSERT OR REPLACE INTO PLAYER_POSITIONS (PLAYER_NAME, PLAYER_ID, POSITION)
+                INSERT OR REPLACE INTO PLAYER_POSITIONS_TEMP (PLAYER_NAME, PLAYER_ID, POSITION)
                 VALUES (?, ?, ?)
 
-            """, (player_name, player_id, position))
+            """, (player_name, int(player_id), position))
     
     con.commit()
 
@@ -98,6 +102,7 @@ if __name__ == "__main__":
     config = load_config()
 
     con = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
+    cur = con.cursor()
 
     update_player_positions(con, "2024")
 

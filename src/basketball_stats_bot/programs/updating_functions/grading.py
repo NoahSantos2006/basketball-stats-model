@@ -532,7 +532,7 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    start_date_str = "2026-01-14"
-    end_date_str = "2026-01-14"
+    start_date_str = "2026-01-16"
+    end_date_str = "2026-01-16"
 
     grade_system(conn=conn, curr_date_str=start_date_str, end_date_str=end_date_str)

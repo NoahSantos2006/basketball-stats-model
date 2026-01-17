@@ -251,9 +251,9 @@ def update_db_gamelogs(conn):
     # DESC - descending order
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
-    start_date_str = "2023-10-24"
+    start_date_str = "2024-10-04"
     curr_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-    end_date = datetime.strptime("2024-06-17", "%Y-%m-%d").date()
+    end_date = datetime.strptime("2024-10-18", "%Y-%m-%d").date()
 
     while curr_date <= end_date:
 
@@ -286,6 +286,11 @@ def update_db_gamelogs(conn):
                 continue
 
             for key, val in pct_boxscore_stats.items():
+
+                if key not in reg_boxscore_stats:
+
+                    print(f"Could not find {key} in reg box score stats")
+                    continue
 
                 reg_boxscore_stats[key].extend(val)
                 arr.append(reg_boxscore_stats[key])

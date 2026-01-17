@@ -620,9 +620,9 @@ def train_v10_model(conn):
                                 )
         
         param_dist = {
-            "max_depth": [4, 5, 6], # model complexity
+            "max_depth": [2, 3], # model complexity
             "learning_rate": [0.03, 0.05], # shrinks each tree's contribution, lower = more stable, needs more trees
-            "min_child_weight": [5, 10, 15], # controls how much data a tree split must have before XGboost is allowed to create it
+            "min_child_weight": [20, 30, 50], # controls how much data a tree split must have before XGboost is allowed to create it
             "n_estimators": [100, 200, 300], # of trees
             "gamma": [1.0, 5.0], # minimum loss reduction to split
             "subsample": [0.7, 0.9], # % of rows per tree
