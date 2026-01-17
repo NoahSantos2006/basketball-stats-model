@@ -30,7 +30,7 @@ if __name__ == "__main__":
     ]
 
     curr_date_str = '2026-01-01'
-    end_date_str = '2026-01-08'
+    end_date_str = '2026-01-01'
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     

@@ -2161,7 +2161,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
             if player_game_logs_before_curr_date_vs_opp.empty:
 
-                print(f"Could not find gamelogs for current player before {curr_date}")
+                print(f"Could not find gamelogs against opposition for current player before {curr_date}")
                 return [], np.nan, np.nan, np.nan, 0
 
             opp_games_for_current_prop = player_game_logs_before_curr_date_vs_opp[prop].to_list()
@@ -2331,7 +2331,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
     today_features = {}
 
-    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
+    today_features[int(player_id)] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
 
     for player_id, values in today_features.items():
 
@@ -2354,11 +2354,11 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
         if prob_over < 50:
 
-            return 0 - (100 - prob_over)
+            return 0 - (100 - prob_over), today_features
         
         elif prob_over >= 50:
 
-            return prob_over
+            return prob_over, today_features
 
 if __name__ == '__main__':
 

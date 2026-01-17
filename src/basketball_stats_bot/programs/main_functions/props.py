@@ -322,6 +322,40 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
     config = load_config()
 
+    def avg_last_5_minutes(game_logs, player_id, curr_date):
+
+        game_logs = game_logs[
+            (game_logs['GAME_DATE'] < str(curr_date)) &
+            (game_logs['PLAYER_ID'] == player_id) &
+            (game_logs['MIN'] > 0)
+        ].sort_values("GAME_DATE", ascending=False)
+
+        minutes_list = game_logs['MIN'].to_list()
+        last_5 = []
+
+        if len(minutes_list) == 0:
+
+            return np.nan
+
+        i = 0
+
+        while i < min(5, len(minutes_list)):
+
+            if len(last_5) < 5:
+                last_5.append(minutes_list[i])
+            i += 1
+
+        curr_average = sum(minutes_list) / len(minutes_list)
+
+        while len(last_5) < 5:
+     
+            if len(last_5) < 5:
+                last_5.append(curr_average)
+
+        average_last_5 = float(sum(last_5) / 5)
+
+        return average_last_5
+            
     def find_minutes_projection(season_game_logs, curr_scoreboard, positions_df, season_start_date, curr_date, player_id, conn):
 
         def find_minute_projection_features(conn, season_start_date, curr_date, season_game_logs, curr_scoreboard, positions_df, player_id):
@@ -378,33 +412,24 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                 average_last_10 = float(sum(last_10) / 10)
 
                 return average_last_3, average_last_5, average_last_7, average_last_10
-
+            
             def minutes_trend_5(curr_date, player_id, player_name, season_game_logs):
         
                 curr_player_game_logs = season_game_logs[
                     (season_game_logs['GAME_DATE'] < str(curr_date)) &
                     (season_game_logs['PLAYER_ID'] == player_id) &
                     (season_game_logs['MIN'] > 0)
-                ].sort_values("GAME_DATE", ascending=False).iloc[:5]
+                ].sort_values("GAME_DATE", ascending=False).iloc[:10]
+
+                if curr_player_game_logs.empty:
+
+                    return np.nan
                 
-                minutes_list = curr_player_game_logs['MIN'].to_list()
+                avg_last_10 = curr_player_game_logs.iloc[:10]['MIN'].sum() / len(curr_player_game_logs.iloc[:10])
+                avg_last_3 = curr_player_game_logs.iloc[:3]['MIN'].sum() / len(curr_player_game_logs.iloc[:3])
 
-                if len(minutes_list) == 0:
-
-                    print(f"Could not find games with minutes before {curr_date} for {player_name}.")
-                    return np.nan
+                return avg_last_3 - avg_last_10
             
-                if len(curr_player_game_logs) < 2:
-
-                    return np.nan
-
-                minutes = curr_player_game_logs['MIN'].values
-                games = np.arange(len(minutes))
-
-                slope = np.polyfit(games, minutes, 1)[0]
-
-                return slope
-
             def find_position_missing_minutes(conn, curr_date, positions, team_id):
 
                 dfs = []
@@ -708,6 +733,8 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
     system = {}
 
+    all_features = []
+
     for player, prop_lines in draftkings_sportsbook.items():
 
         print(f"Calculating score for {player} using scoringv10")
@@ -750,10 +777,12 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
         for prop, line in prop_lines.items():
                             
-            curr_score = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
+            curr_score, curr_features = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
                                    translation[prop], line, scoreboard, 
                                    player_positions_df, date, team_totals_per_player_df, 
                                    minutes_projection, season_game_logs, conn)
+            
+            all_features.append(curr_features)
 
             if curr_score == -2 or not curr_score:
 
@@ -767,6 +796,12 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
     with open(file_path, "w") as f:
 
         json.dump(system, f, indent=4)
+
+    file_path = os.path.join(config.GAME_FILES_PATH, str(date), "features.json")
+
+    with open(file_path, "w") as f:
+
+        json.dump(all_features, f, indent=4)
 
     return system
  

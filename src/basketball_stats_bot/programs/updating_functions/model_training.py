@@ -82,7 +82,7 @@ def train_minutes_projection_model(conn):
     print(f"Training minutes projection model...")
     df = pd.read_sql_query("SELECT * FROM MINUTES_PROJECTION_TRAINING", conn)
 
-    # makes sure there's not data leak (xgboost model sees future games) uses TimeSeriesSplit later in code so that it looks in the past and trains on the future
+    # makes sure there's not data leak (xgboost model sees future games) uses TimeSeriesSplit later in code so that it trains on past and tests on the future
     df = df.sort_values("GAME_DATE").reset_index(drop=True)
 
     feature_cols = [
@@ -114,9 +114,9 @@ def train_minutes_projection_model(conn):
                             )
     
     param_dist = {
-        "max_depth": [2, 3], # model complexity
+        "max_depth": [4, 5, 6], # model complexity
         "learning_rate": [0.03, 0.05, 0.1], # shrinks each tree's contribution, lower = more stable, needs more trees
-        "min_child_weight": [10, 20, 30], # controls how much data a tree split must have before XGboost is allowed to create it
+        "min_child_weight": [1, 2, 3, 5], # controls how much data a tree split must have before XGboost is allowed to create it
         "n_estimators": [200, 400, 600], # of trees
         "gamma": [0, 0.1, 0.25, 0.5, 1.0], # minimum loss reduction to split
         "subsample": [0.7, 0.9], # % of rows per tree
@@ -467,7 +467,7 @@ def train_v8_model(conn):
         print(f"Training XGBoost Model V8 for {prop}..")
         train_model(conn, prop)
 
-# main
+
 def train_v9_model(conn):
 
     config = load_config()
@@ -577,6 +577,7 @@ def train_v9_model(conn):
         print(f"Training XGBoost Model V9 for {prop}..")
         train_model(conn, prop)
 
+# main
 def train_v10_model(conn):
 
     config = load_config()
@@ -619,9 +620,9 @@ def train_v10_model(conn):
                                 )
         
         param_dist = {
-            "max_depth": [2, 3], # model complexity
+            "max_depth": [4, 5, 6], # model complexity
             "learning_rate": [0.03, 0.05], # shrinks each tree's contribution, lower = more stable, needs more trees
-            "min_child_weight": [40, 80, 120], # controls how much data a tree split must have before XGboost is allowed to create it
+            "min_child_weight": [5, 10, 15], # controls how much data a tree split must have before XGboost is allowed to create it
             "n_estimators": [100, 200, 300], # of trees
             "gamma": [1.0, 5.0], # minimum loss reduction to split
             "subsample": [0.7, 0.9], # % of rows per tree
@@ -700,7 +701,4 @@ if __name__ == "__main__":
 
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
-    model = joblib.load(r"C:\Users\noahs\.vscode\basketball_stats_model\basketball-stats-model\src\basketball_stats_bot\data\XGBoost\minutes_projection_model.pkl")
-
-    xgb.plot_importance(model)
-    plt.show()
+    train_v10_model(conn=conn)

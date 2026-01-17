@@ -320,7 +320,7 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
 
         injury_df = pd.DataFrame()
 
-        for i in range(16, 3, -1):
+        for i in range(18, 3, -1):
 
             date = datetime(
                 year, month, day, i, 0,
@@ -345,7 +345,7 @@ def update_dnps_from_nbainjuries(conn, season_start_date, curr_date):
             print(f"Could not find injuries for {year}-{month}-{day}")
             sys.exit(1)
 
-        curr_date_changed= datetime.strptime(curr_date, "%Y-%m-%d").strftime("%m/%d/%Y")
+        curr_date_changed= datetime.strptime(str(curr_date), "%Y-%m-%d").strftime("%m/%d/%Y")
         curr_injury_df = injury_df[injury_df['Game Date'] == str(curr_date_changed)]
 
         player_status_dict = parse_nba_injuries(curr_injury_df, player_names_from_player_game_logs_df)
@@ -1424,7 +1424,7 @@ def update_team_totals_per_player(conn):
         return on_court_stats_df
 
     latest_date_str = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER ORDER BY GAME_DATE DESC", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2026-01-13", "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
     cursor = conn.cursor()

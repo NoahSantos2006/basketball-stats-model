@@ -18,6 +18,8 @@ from basketball_stats_bot.config import load_config
 def update_db_gamelogs(conn):
 
     config = load_config()
+    corrupted_boxscore  = []
+    corrupted_boxscoreusage  = []
 
     def clean_name(text):
 
@@ -61,16 +63,32 @@ def update_db_gamelogs(conn):
 
             try:
 
-                reg_boxscore = boxscore.BoxScore(game_id=gameId).get_dict()
+                reg_boxscore = boxscore.BoxScore(game_id=gameId, timeout=10).get_dict()
                 break
             
-            except Timeout as t:
+            except json.decoder.JSONDecodeError as j:
 
+                corrupted_boxscore.append(gameId)
+                return -1
+            
+            except Timeout as t:
+                
+                print(t)
                 continue
 
             except:
+                
+                with open(f"corrupted_BoxScore_{start_date_str}-{curr_date}.json", "w") as f:
 
+                    json.dump(corrupted_boxscore, f, indent=4)
+
+                with open(f"corrupted_BoxScoreUsage_{start_date_str}-{curr_date}.json", "w") as f:
+
+                    json.dump(corrupted_boxscore, f, indent=4)
+
+                conn.close()
                 raise
+
 
         current_game_stats = reg_boxscore['game']
 
@@ -161,22 +179,36 @@ def update_db_gamelogs(conn):
 
         return reg_boxscore_stats 
 
-    def find_pct_data(game_id, curr_date):
+    def find_pct_data(game_id, curr_date, reg_boxscore):
         
         while True:
 
             try:
 
-                box = boxscoreusagev3.BoxScoreUsageV3(game_id=game_id).get_dict()
+                box = boxscoreusagev3.BoxScoreUsageV3(game_id=game_id, timeout=10).get_dict()
                 break
 
             except Timeout as t:
-                
+
+                print(t)
                 continue
+
+            except json.decoder.JSONDecodeError as j:
+
+                print(f"Could not find boxscoreusagev3 for {game_id}. Check player.py Line 455")
+                corrupted_boxscoreusage.append(game_id)
+                return -1
 
             except:
 
-                print(f"Could not find boxscoreusagev3 for {game_id}. Check player.py Line 455")
+                with open(f"corrupted_BoxScore_{start_date_str}-{curr_date}.json", "w") as f:
+
+                    json.dump(corrupted_boxscore, f, indent=4)
+
+                with open(f"corrupted_BoxScoreUsage_{start_date_str}-{curr_date}.json", "w") as f:
+
+                    json.dump(corrupted_boxscore, f, indent=4)
+                conn.close()
                 raise
         
         print(f"Updating {game_id} on {curr_date}")
@@ -219,11 +251,11 @@ def update_db_gamelogs(conn):
     # DESC - descending order
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
+    start_date_str = "2023-10-24"
+    curr_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    end_date = datetime.strptime("2024-06-17", "%Y-%m-%d").date()
 
-    curr_date = datetime.strptime("2024-01-06", "%Y-%m-%d").date()
-    end_date = datetime.strptime("2025-04-13", "%Y-%m-%d").date()
-
-    while curr_date < end_date:
+    while curr_date <= end_date:
 
         print(f"Finding gamelogs for {curr_date}..")
 
@@ -244,8 +276,14 @@ def update_db_gamelogs(conn):
 
                 print(f"Boxscores weren't recorded for {game_id}. Check update_db_gamelogs Line 546.")
                 continue
+            
+            time.sleep(0.4)
+            pct_boxscore_stats = find_pct_data(game_id, str(curr_date), reg_boxscore_stats)
 
-            pct_boxscore_stats = find_pct_data(game_id, str(curr_date))
+            if pct_boxscore_stats == -1:
+
+                print(f"Boxscores usages weren't recorded for {game_id}. Check update_db_gamelogs Line 546.")
+                continue
 
             for key, val in pct_boxscore_stats.items():
 
@@ -259,11 +297,20 @@ def update_db_gamelogs(conn):
 
                 cursor.execute(query, stats)
             
+            
             time.sleep(0.2)
         
+        conn.commit()
         curr_date += timedelta(days=1)
 
-        conn.commit()
+
+    with open(f"corrupted_BoxScore_{start_date_str}-{end_date}.json", "w") as f:
+
+        json.dump(corrupted_boxscore, f, indent=4)
+
+    with open(f"corrupted_BoxScoreUsage_{start_date_str}-{end_date}.json", "w") as f:
+
+        json.dump(corrupted_boxscore, f, indent=4)
 
     print(f"Gamelogs updated.")
 

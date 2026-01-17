@@ -20,10 +20,11 @@ if __name__ == "__main__":
     con = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cur = con.cursor()
 
-    model = joblib.load(r"C:\Users\noahs\.vscode\basketball_stats_model\basketball-stats-model\src\basketball_stats_bot\data\XGBoost\minutes_projection_model.pkl")
+    cur.execute("DELETE FROM MINUTES_PROJECTION_TRAINING WHERE MINUTES = 0")
 
-    xgb.plot_importance(model)
-    plt.show()
+    con.commit()
+
+    
     
     
 

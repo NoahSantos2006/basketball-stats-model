@@ -10,7 +10,7 @@ import numpy as np
 from io import StringIO
 
 from basketball_stats_bot.config import load_config
-from basketball_stats_bot.programs.updating_functions.players import update_dnps_from_bref
+from basketball_stats_bot.programs.updating_functions.players import update_dnps_from_nbainjuries
 from basketball_stats_bot.programs.main_functions.props import props_parser, player_vs_prop_scores, get_prop_lines, get_today_ids
 from basketball_stats_bot.programs.main_functions.nba_api_database import scoreboard_to_team_roster, player_vs_team_or_last_20
 from basketball_stats_bot.programs.main_functions.updatingDB import updateDB
@@ -80,6 +80,8 @@ if __name__ == "__main__":
 
         if user_input == "y":
 
+            update_dnps_from_nbainjuries(conn, config.SEASON_START_DATE, date)
+
             all_game_event_odds_row = pd.read_sql_query("SELECT * FROM ODDS_API WHERE DATE = ?", conn, params=(str(date),))
 
             if all_game_event_odds_row['GAME_PROPS'].iloc[0] not in {np.nan, None}:
@@ -103,8 +105,6 @@ if __name__ == "__main__":
 
 
             draftkings_sportsbook = props_parser(all_game_event_odds, conn)
-
-            update_dnps_from_bref(conn, config.SEASON_START_DATE, date)
 
             scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, config.SEASON_START_DATE)
 

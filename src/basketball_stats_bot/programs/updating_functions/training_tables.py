@@ -25,9 +25,7 @@ def update_props_training_table(season_start_date, conn):
                     (game_logs['GAME_DATE'] < str(curr_date)) &
                     (game_logs['PLAYER_ID'] == player_id) &
                     (game_logs['MIN'] > 0)
-                ]
-
-                game_logs = game_logs.sort_values("GAME_DATE", ascending=False)
+                ].sort_values("GAME_DATE", ascending=False)
 
                 minutes_list = game_logs['MIN'].to_list()
                 last_3 = []
@@ -80,33 +78,16 @@ def update_props_training_table(season_start_date, conn):
                     (season_game_logs['GAME_DATE'] < str(curr_date)) &
                     (season_game_logs['PLAYER_ID'] == player_id) &
                     (season_game_logs['MIN'] > 0)
-                ]
-                
-                minutes_list = curr_player_game_logs['MIN'].to_list()
+                ].sort_values("GAME_DATE", ascending=False).iloc[:10]
 
-                last_5 = []
-                average = 0
-
-                if len(minutes_list) == 0:
-
-                    print(f"Could not find games with minutes before {curr_date} for {player_name}.")
-                    return np.nan
-                
-                last_5 = minutes_list[:5]
-
-                if len(last_5) < 2:
+                if curr_player_game_logs.empty:
 
                     return np.nan
                 
-                average = sum(last_5) / len(last_5)
+                avg_last_10 = curr_player_game_logs.iloc[:10]['MIN'].sum() / len(curr_player_game_logs.iloc[:10])
+                avg_last_3 = curr_player_game_logs.iloc[:3]['MIN'].sum() / len(curr_player_game_logs.iloc[:3])
 
-                while len(last_5) < 5:
-
-                    last_5.append(average)
-
-                slope = (last_5[-1] - last_5[0]) / 4
-
-                return slope
+                return avg_last_3 - avg_last_10
 
             def find_position_missing_minutes(conn, curr_date, positions, team_id):
 
@@ -137,7 +118,7 @@ def update_props_training_table(season_start_date, conn):
 
                 total_pos_minutes = cat.drop_duplicates('PLAYER_ID')['AVERAGE_MINUTES'].sum()
                 
-                return min(48, total_pos_minutes)
+                return total_pos_minutes
 
             def find_last_10_std_dev(curr_date, player_id, player_name, game_logs):
 
@@ -145,12 +126,14 @@ def update_props_training_table(season_start_date, conn):
                     (game_logs['PLAYER_ID'] == player_id) &
                     (game_logs['GAME_DATE'] < curr_date) &
                     (game_logs['MIN'] > 0)
-                ]
+                ].sort_values("GAME_DATE", ascending=False)
 
                 if current_player_game_logs.empty:
 
                     print(f"Could not find game logs before {curr_date} for {player_name}")
                     return np.nan
+                
+                current_player_game_logs = current_player_game_logs.sort_values("GAME_DATE", ascending=False)
 
                 last_10_games = current_player_game_logs.iloc[:10]['MIN'].to_list()
 
@@ -207,7 +190,8 @@ def update_props_training_table(season_start_date, conn):
                 if game_logs[
 
                     (game_logs['GAME_DATE'] == str(day_before_curr_date)) &
-                    (game_logs['PLAYER_ID'] == player_id)
+                    (game_logs['PLAYER_ID'] == player_id) &
+                    (game_logs['MIN'] > 0)
 
                 ].empty:
                     
@@ -221,7 +205,9 @@ def update_props_training_table(season_start_date, conn):
                     (season_game_logs['PLAYER_ID'] == player_id) &
                     (season_game_logs['GAME_DATE'] < curr_date) &
                     (season_game_logs['MIN'] > 0)
-                ].iloc[:5]
+                ]
+
+                player_game_logs = player_game_logs.sort_values("GAME_DATE", ascending=False).iloc[:5]
 
                 if player_game_logs.empty:
 
@@ -236,9 +222,10 @@ def update_props_training_table(season_start_date, conn):
                 player_logs = season_game_logs[
 
                     (season_game_logs['PLAYER_ID'] == player_id) &
-                    (season_game_logs['GAME_DATE'] < str(curr_date)) 
-                    
-                ].iloc[:10]
+                    (season_game_logs['GAME_DATE'] < str(curr_date)) &
+                    (season_game_logs['MIN'] > 0)
+
+                ].sort_values("GAME_DATE", ascending=False).iloc[:10]
 
                 if player_logs.empty:
 
@@ -251,7 +238,7 @@ def update_props_training_table(season_start_date, conn):
                     (season_game_logs['TEAM_ID'] == team_id) &
                     (season_game_logs['GAME_DATE'] < str(curr_date))
 
-                ].drop_duplicates("GAME_DATE").iloc[:10]
+                ].sort_values("GAME_DATE", ascending=False).drop_duplicates("GAME_DATE").iloc[:10]
 
                 games_played_last_5 = 0
                 games_played_last_10 = 0
@@ -708,8 +695,6 @@ def update_props_training_table(season_start_date, conn):
 
                 if np.isnan(minutes_projection) or avg_last_5_minutes == 0 or np.isnan(avg_last_5_pct_share):
 
-                    print(minutes_projection, avg_last_5_minutes, avg_last_5_pct_share)
-
                     expected_from_last_5_minus_line = np.nan
                     expected_from_last_10_minus_line = np.nan
                 
@@ -932,25 +917,16 @@ def update_minutes_projection_features_table(conn, season_start_date):
             (season_game_logs['GAME_DATE'] < str(curr_date)) &
             (season_game_logs['PLAYER_ID'] == player_id) &
             (season_game_logs['MIN'] > 0)
-        ].sort_values("GAME_DATE", ascending=False).iloc[:5]
+        ].sort_values("GAME_DATE", ascending=False).iloc[:10]
+
+        if curr_player_game_logs.empty:
+
+            return np.nan
         
-        minutes_list = curr_player_game_logs['MIN'].to_list()
+        avg_last_10 = curr_player_game_logs.iloc[:10]['MIN'].sum() / len(curr_player_game_logs.iloc[:10])
+        avg_last_3 = curr_player_game_logs.iloc[:3]['MIN'].sum() / len(curr_player_game_logs.iloc[:3])
 
-        if len(minutes_list) == 0:
-
-            print(f"Could not find games with minutes before {curr_date} for {player_name}.")
-            return np.nan
-    
-        if len(curr_player_game_logs) < 2:
-
-            return np.nan
-
-        minutes = curr_player_game_logs['MIN'].values
-        games = np.arange(len(minutes))
-
-        slope = np.polyfit(games, minutes, 1)[0]
-
-        return slope
+        return avg_last_3 - avg_last_10
 
     def find_position_missing_minutes(conn, curr_date, positions, team_id):
 
@@ -1142,28 +1118,34 @@ def update_minutes_projection_features_table(conn, season_start_date):
         return int(player_game_logs['MIN'].iloc[0])
     
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(season_start_date,))
-    scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER", conn)
     positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
 
     latest_date_str = pd.read_sql_query("SELECT * FROM MINUTES_PROJECTION_TRAINING ORDER BY GAME_DATE DESC LIMIT 1", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date()
+    curr_date = datetime.strptime("2024-10-22", "%Y-%m-%d").date()
     end_date = datetime.now(ZoneInfo("America/New_York")).date()
+    end_date = datetime.strptime("2025-06-22", "%Y-%m-%d").date()
     cursor = conn.cursor()
 
     while curr_date < end_date:
         
         print(f"Updating minutes projection features table for {curr_date}...")
 
-        curr_scoreboard = scoreboard[scoreboard['date'] == str(curr_date)]
+        today_game_logs = season_game_logs[season_game_logs['GAME_DATE'] == str(curr_date)]
+        curr_player_ids = today_game_logs['PLAYER_ID'].astype(int).to_list()
 
-        curr_player_ids = curr_scoreboard.drop_duplicates("PLAYER_ID")['PLAYER_ID'].to_list()
-        
         for player_id in curr_player_ids:
 
             positions = positions_df[positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
-            team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
-            game_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['GAME_ID'].iloc[0]
-            player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
+            player_name = today_game_logs[today_game_logs['PLAYER_ID'] == player_id]['PLAYER_NAME'].iloc[0]
+
+            if not positions:
+
+                print(f"Could not find positions for {player_name}.")
+                sys.exit(1)
+
+            team_id = today_game_logs[today_game_logs['PLAYER_ID'] == player_id]['TEAM_ID'].iloc[0]
+            game_id = today_game_logs[today_game_logs['PLAYER_ID'] == player_id]['GAME_ID'].iloc[0]
+            player_name = today_game_logs[today_game_logs['PLAYER_ID'] == player_id]['PLAYER_NAME'].iloc[0]
 
             average_last_3, average_last_5, average_last_7, average_last_10 = avg_last_3_5_7_10(season_game_logs, player_id, str(curr_date))
             minute_trend = minutes_trend_5(str(curr_date), player_id, player_name, season_game_logs)
@@ -1208,6 +1190,8 @@ def update_minutes_projection_features_table(conn, season_start_date):
 
         curr_date += timedelta(days=1)
 
+    cursor.execute("DELETE FROM MINUTES_PROJECTION_TRAINING WHERE MINUTES = 0")
+
     conn.commit()
 
 if __name__ == "__main__":
@@ -1217,10 +1201,8 @@ if __name__ == "__main__":
 
     cursor = conn.cursor()
 
-    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date()
-    end_date = datetime.now(ZoneInfo(config.TIMEZONE)).date()
-    end_date = datetime.strptime("2026-01-15", "%Y-%m-%d").date()
+    season_start_date = "2024-10-22"
 
-    update_minutes_projection_features_table(conn=conn, season_start_date=config.SEASON_START_DATE)
+    update_minutes_projection_features_table(conn=conn, season_start_date=season_start_date)
 
     print(f"Done with updating.")
