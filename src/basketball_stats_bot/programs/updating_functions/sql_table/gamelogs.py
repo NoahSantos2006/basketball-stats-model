@@ -251,11 +251,7 @@ def update_db_gamelogs(conn):
     # DESC - descending order
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
-<<<<<<< HEAD
     start_date_str = "2024-10-04"
-=======
-    start_date_str = "2024-02-06"
->>>>>>> 4eefc90dc906beaf1e2230478042c00399a058e9
     curr_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime("2024-10-18", "%Y-%m-%d").date()
 
