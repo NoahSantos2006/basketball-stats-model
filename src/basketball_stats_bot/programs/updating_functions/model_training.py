@@ -115,9 +115,10 @@ def train_minutes_projection_model(conn):
     
     param_dist = {
         "max_depth": [4, 5, 6], # model complexity
-        "learning_rate": [0.03, 0.05, 0.08], # shrinks each tree's contribution, lower = more stable, needs more trees
-        "min_child_weight": [200, 400, 600], # controls how much data a tree split must have before XGboost is allowed to create it
-        "n_estimators": [500, 800, 1200], # of trees
+        "learning_rate": [0.04, 0.06, 0.08], # shrinks each tree's contribution, lower = more stable, needs more trees
+        "min_child_weight": [50, 100, 200, 400], # controls how much data a tree split must have before XGboost is allowed to create it
+        "n_estimators": [400, 600, 900], # of trees
+        "max_leaves": [31, 63, 127],
         "gamma": [0, 0.05, 0.1, 0.3, 1.0], # minimum loss reduction to split
         "subsample": [0.7, 0.9], # % of rows per tree
         "colsample_bytree": [0.5, 0.7], # % of features per tree
@@ -133,7 +134,7 @@ def train_minutes_projection_model(conn):
         n_iter=60, # how many differeny hyperparameter combinations to try
         scoring="neg_mean_absolute_error", # scoring metric used to decide which model is "best"
         cv=tscv, # always trains on past and tests on future
-        n_jobs=-1, # how many CPU cores to use in parallel
+        n_jobs=10, # how many CPU cores to use in parallel
         random_state=42, # seed for randomness
         verbose=1 # controls how much output you see
     )
@@ -141,6 +142,15 @@ def train_minutes_projection_model(conn):
     search.fit(X,y)
 
     best_params = search.best_params_
+
+    testing_params_path = os.path.join(config.XGBOOST_PATH, "testing_best_params")
+
+    if not os.path.isdir(testing_params_path):
+
+        os.mkdir(testing_params_path)
+
+    best_params_path = os.path.join(config.XGBOOST_PATH, "testing_best_params", f"minutes_projection_best_params.pkl")
+    joblib.dump(best_params, best_params_path)
 
     final_model = XGBRegressor(
         **best_params,
@@ -623,7 +633,7 @@ def train_v10_model(conn):
             "max_depth": [2, 3], # model complexity
             "learning_rate": [0.02, 0.03, 0.05], # shrinks each tree's contribution, lower = more stable, needs more trees
             "min_child_weight": [5, 10, 20, 40], # controls how much data a tree split must have before XGboost is allowed to create it
-            "n_estimators": [300, 500, 800], # of trees
+            "n_estimators": [800, 1000, 1200], # of trees
             "gamma": [0, 0.5, 1.0, 2.0], # minimum loss reduction to split
             "subsample": [0.7, 0.9], # % of rows per tree
             "colsample_bytree": [0.5, 0.7], # % of features per tree
@@ -640,7 +650,7 @@ def train_v10_model(conn):
             n_iter=50, # how many differeny hyperparameter combinations to try
             scoring="neg_log_loss", # scoring metric used to decide which model is "best"
             cv=tscv, # always trains on past and tests on future
-            n_jobs=-1, # how many CPU cores to use in parallel
+            n_jobs=10, # how many CPU cores to use in parallel
             random_state=42, # seed for randomness
             verbose=1 # controls how much output you see
         )
@@ -662,7 +672,7 @@ def train_v10_model(conn):
             **best_params,
             objective="binary:logistic",
             random_state=42,
-            eval_metric='auc',
+            eval_metric='logloss',
             tree_method='hist',
         )
 

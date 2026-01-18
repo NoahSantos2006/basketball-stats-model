@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
             only_want_game_logs = input("Do you just want get player game logs? y/n: ").lower()
         
-    scoreboard_to_team_roster_df = scoreboard_to_team_roster("2025-26", date, conn)
+    scoreboard_to_team_roster_df = scoreboard_to_team_roster(current_season, date, conn)
 
     player_vs_team_or_last_20_df = player_vs_team_or_last_20(scoreboard_to_team_roster_df, date, config.SEASON_START_DATE, conn)
     

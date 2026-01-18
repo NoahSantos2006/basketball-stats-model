@@ -30,7 +30,7 @@ if __name__ == "__main__":
     ]
 
     curr_date_str = '2026-01-01'
-    end_date_str = '2026-01-07'
+    end_date_str = '2026-01-03'
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     
@@ -68,7 +68,7 @@ if __name__ == "__main__":
                     **usage_params,
                     objective="binary:logistic",
                     random_state=42,
-                    eval_metric='auc',
+                    eval_metric='logloss',
                     tree_method='hist',
                 ),
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
                     **usage_params,
                     objective="binary:logistic",
                     random_state=42,
-                    eval_metric='auc',
+                    eval_metric='logloss',
                     tree_method='hist',
                 ),
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
                     **usage_params,
                     objective="binary:logistic",
                     random_state=42,
-                    eval_metric='auc',
+                    eval_metric='logloss',
                     tree_method='hist',
                 )
 

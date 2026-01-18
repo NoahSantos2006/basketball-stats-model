@@ -318,44 +318,10 @@ def props_parser(all_game_event_odds, conn):
 
     return parser
 
-def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, season_start_date):
+def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, curr_date, conn, season_start_date):
 
     config = load_config()
-
-    def avg_last_5_minutes(game_logs, player_id, curr_date):
-
-        game_logs = game_logs[
-            (game_logs['GAME_DATE'] < str(curr_date)) &
-            (game_logs['PLAYER_ID'] == player_id) &
-            (game_logs['MIN'] > 0)
-        ].sort_values("GAME_DATE", ascending=False)
-
-        minutes_list = game_logs['MIN'].to_list()
-        last_5 = []
-
-        if len(minutes_list) == 0:
-
-            return np.nan
-
-        i = 0
-
-        while i < min(5, len(minutes_list)):
-
-            if len(last_5) < 5:
-                last_5.append(minutes_list[i])
-            i += 1
-
-        curr_average = sum(minutes_list) / len(minutes_list)
-
-        while len(last_5) < 5:
-     
-            if len(last_5) < 5:
-                last_5.append(curr_average)
-
-        average_last_5 = float(sum(last_5) / 5)
-
-        return average_last_5
-            
+        
     def find_minutes_projection(season_game_logs, curr_scoreboard, positions_df, season_start_date, curr_date, player_id, conn):
 
         def find_minute_projection_features(conn, season_start_date, curr_date, season_game_logs, curr_scoreboard, positions_df, player_id):
@@ -713,11 +679,11 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
     system = {}
     conn.create_function("clean_name", 1, clean_name)
 
-    scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE DATE = ?", conn, params=(date,))
+    scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE DATE = ?", conn, params=(curr_date,))
     scoreboard['PLAYER'] = scoreboard['PLAYER'].apply(clean_name)
     player_positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
-    team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER", conn)
-    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE < ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(date, season_start_date))
+    team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER WHERE GAME_DATE < ?", conn, params=(str(curr_date)))
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE < ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(curr_date, season_start_date))
 
     if 'name_clean' not in player_vs_team_or_last_20_df.columns:
 
@@ -732,12 +698,9 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
         }
 
     system = {}
-
     all_features = []
 
     for player, prop_lines in draftkings_sportsbook.items():
-
-        print(f"Calculating score for {player} using scoringv10")
 
         player = clean_name(player)
 
@@ -751,12 +714,11 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
         if clean_name(player) not in player_games:
 
-            print(f"Could not find {player} in player_games")
+            print(f"Could not find {player} in player_games. Check props.py: Line 719")
             sys.exit(1)
             continue
         
         curr_player_vs_team_or_last_20_df = player_games[player]
-
         curr_player_vs_team_or_last_20_df = curr_player_vs_team_or_last_20_df.sort_values('GAME_DATE', ascending=False)
 
         if curr_player_vs_team_or_last_20_df.empty:
@@ -770,7 +732,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                                                         curr_scoreboard=scoreboard, 
                                                         positions_df=player_positions_df, 
                                                         season_start_date=season_start_date, 
-                                                        curr_date=date, 
+                                                        curr_date=curr_date, 
                                                         player_id=player_id, 
                                                         conn=conn
                                                     )
@@ -779,25 +741,25 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                             
             curr_score, curr_features = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
                                    translation[prop], line, scoreboard, 
-                                   player_positions_df, date, team_totals_per_player_df, 
-                                   minutes_projection, season_game_logs, conn)
+                                   player_positions_df, curr_date, team_totals_per_player_df, 
+                                   minutes_projection, season_game_logs, conn, config.SEASON_START_DATE)
             
             all_features.append(curr_features)
 
-            if curr_score == -2 or not curr_score:
+            if not curr_score or curr_score == -2:
 
                 continue
 
             system[player][prop] = (float(curr_score), line)
             system[player]['PERSON_ID'] = int(player_vs_team_or_last_20_df[player_vs_team_or_last_20_df['NAME_CLEAN'] == player]['PLAYER_ID'].iloc[0])
     
-    file_path = os.path.join(config.GAME_FILES_PATH, str(date), "scores.json")
+    file_path = os.path.join(config.GAME_FILES_PATH, str(curr_date), "scores.json")
 
     with open(file_path, "w") as f:
 
         json.dump(system, f, indent=4)
 
-    file_path = os.path.join(config.GAME_FILES_PATH, str(date), "features.json")
+    file_path = os.path.join(config.GAME_FILES_PATH, str(curr_date), "features.json")
 
     with open(file_path, "w") as f:
 

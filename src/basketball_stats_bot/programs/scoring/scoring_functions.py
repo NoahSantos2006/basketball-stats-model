@@ -1696,7 +1696,7 @@ def scoringv8(game_logs, current_opposition_id, prop, line, scoreboard, player_p
             return prob_over
 
 # like scoringv8 but uses averages instead of singular game stats ( current best )
-def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn):
+def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn, season_start_date):
 
     def find_features(game_logs, player_id, conn, curr_date, scoreboard, season_start_date, player_positions_df, team_totals_per_player_df, minutes_projection, season_game_logs):
 
@@ -1871,7 +1871,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
 
             (season_game_logs['PLAYER_ID'] == player_id) &
             (season_game_logs['GAME_DATE'] < str(curr_date)) &
-            (season_game_logs['GAME_DATE'] > config.SEASON_START_DATE) &
+            (season_game_logs['GAME_DATE'] > season_start_date) &
             (season_game_logs['MIN'] > 0)
 
         ]
@@ -1980,7 +1980,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
 
     today_features = {}
 
-    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, config.SEASON_START_DATE, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
+    today_features[player_id] = {'player_name': player_name, 'features': find_features(game_logs, player_id, conn, str(curr_date), scoreboard, season_start_date, player_positions, team_totals_per_player_df, minutes_projection, season_game_logs)}
 
     for player_id, values in today_features.items():
 
@@ -2010,7 +2010,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
             return prob_over
 
 # similar to v9 but uses minutes projection, position_missing_stat, and player share as well as expected last 5_10
-def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn):
+def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn, season_start_date):
 
     def find_features(game_logs, player_id, conn, curr_date, scoreboard, player_positions_df, team_totals_per_player_df, minutes_projection, season_game_logs):
 
@@ -2217,7 +2217,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
             (season_game_logs['PLAYER_ID'] == player_id) &
             (season_game_logs['GAME_DATE'] < str(curr_date)) &
-            (season_game_logs['GAME_DATE'] > config.SEASON_START_DATE) &
+            (season_game_logs['GAME_DATE'] > season_start_date) &
             (season_game_logs['MIN'] > 0)
 
         ]
@@ -2225,6 +2225,9 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
         curr_player_scoreboard = scoreboard[scoreboard['PLAYER_ID'] == player_id]
         team_id = curr_player_scoreboard['TeamID'].iloc[0]
         player_name = curr_player_scoreboard['PLAYER'].iloc[0]
+
+        print(f"Calculating score for {player_name} ({prop} - {line}) using scoringv10")
+
         opposition_id = curr_player_scoreboard['opposition_team_id'].iloc[0]
         venue = (
             0
@@ -2249,7 +2252,9 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
         curr_team_total_per_player = team_totals_per_player_df[
             (team_totals_per_player_df['PLAYER_ID'] == player_id) &
-            (team_totals_per_player_df['MIN'] > 0)
+            (team_totals_per_player_df['MIN'] > 0) &
+            (team_totals_per_player_df['GAME_DATE'] < str(curr_date)) &
+            (team_totals_per_player_df['GAME_DATE'] >= season_start_date)
         ]
 
         curr_team_total_per_player = curr_team_total_per_player.sort_values('GAME_DATE', ascending=False)

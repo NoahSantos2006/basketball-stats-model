@@ -1487,7 +1487,7 @@ def update_team_totals_per_player(conn):
         play_by_play = playbyplayv3.PlayByPlayV3(game_id=game_id).get_data_frames()[0]
         time.sleep(1)
         game_rotation = GameRotation(game_id=game_id).get_data_frames()
-
+            
         player_ids = game_box_score['PLAYER_ID'].to_list()
 
         curr_date = game_box_score['GAME_DATE'].iloc[0]
@@ -1526,9 +1526,11 @@ def update_team_totals_per_player(conn):
 
         return on_court_stats_df
 
-    latest_date_str = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER ORDER BY GAME_DATE DESC", conn)['GAME_DATE'].iloc[0]
+    team_totals = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER ORDER BY GAME_DATE DESC", conn)
+    latest_date_str = team_totals['GAME_DATE'].iloc[0]
     curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
+    # today = datetime.strptime("2025-06-24", "%Y-%m-%d").date()
 
     cursor = conn.cursor()
 
@@ -1537,6 +1539,13 @@ def update_team_totals_per_player(conn):
     while curr_date < today:
 
         curr_day_boxscores = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE = ?", conn, params=(str(curr_date),))
+        # check_for_existing = team_totals[team_totals['GAME_DATE'] == str(curr_date)]
+
+        # if not check_for_existing.empty:
+
+        #     print(f"Already found team totals per player for {curr_date}.")
+        #     curr_date += timedelta(days=1)
+        #     continue
 
         if curr_day_boxscores.empty:
 
@@ -1570,7 +1579,15 @@ def update_team_totals_per_player(conn):
                 except Timeout as t:
 
                     print(f"Failed on {game_ids[i]} due to {t}")
+                    time.sleep(5)
                     continue
+                
+                except json.decoder.JSONDecodeError as j:
+
+                    print(j)
+                    corrupted.append(game_ids[i])
+                    corrupted_game_id = True
+                    break
 
                 except Exception as e:
 
@@ -1602,6 +1619,7 @@ def update_team_totals_per_player(conn):
                         curr_gid = stat
 
                 player_box_score = curr_day_boxscores[curr_day_boxscores['PLAYER_ID'] == curr_pid]
+                player_name = player_box_score['PLAYER_NAME'].iloc[0]
 
                 for curr_team_total_per_player_stat, stat_name in stats_col_names:
 
@@ -1614,6 +1632,8 @@ def update_team_totals_per_player(conn):
                         stat_recorded = player_box_score[stat_name].iloc[0]
 
                         curr_col_name = f"PCT_{stat_name}_USAGE"
+
+                        print(f"Updating {stat_name} share for {game_id}.")
 
                         cursor.execute(f"""
 
@@ -1643,7 +1663,8 @@ def update_team_totals_per_player(conn):
                 """, stats)
             
             time.sleep(1)
-            conn.commit()
+
+        conn.commit()
         
         curr_date += timedelta(days=1)
     

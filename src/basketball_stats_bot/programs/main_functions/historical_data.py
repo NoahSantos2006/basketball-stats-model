@@ -17,8 +17,8 @@ from requests import Timeout
 
 from basketball_stats_bot.config import load_config
 from nba_api.live.nba.endpoints import scoreboard, boxscore
-from nba_api.stats.endpoints import leaguegamefinder, commonteamroster
-from basketball_stats_bot.programs.scoring.scoring_functions import scoringv8, scoringv9
+from nba_api.stats.endpoints import leaguegamefinder, commonteamroster, GameRotation, playbyplayv3
+from basketball_stats_bot.programs.scoring.scoring_functions import scoringv10
 
 
 
@@ -32,7 +32,42 @@ def clean_name(text):
     clean = removed_accents_text.replace(".", "")
 
     return clean
-    
+
+def get_nba_api_game_ids(conn, curr_date):
+
+    check_for_existing = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS WHERE DATE = ?", conn, params=(str(curr_date),))
+
+    if not check_for_existing.empty:
+
+        print(f"Already found NBA API game ids for {str(curr_date)}")
+        return check_for_existing['GAME_ID'].to_list()
+
+    print(f"Finding NBA API game ids for {str(curr_date)}...")
+
+    cursor = conn.cursor()
+
+    gamefinder = leaguegamefinder.LeagueGameFinder(
+        date_from_nullable=curr_date,
+        date_to_nullable=curr_date
+    )
+
+    games = gamefinder.get_data_frames()[0]
+
+    current_games = games.drop_duplicates("GAME_ID")['GAME_ID'].to_list()
+
+    for gameId in current_games:
+
+        cursor.execute("""
+
+            INSERT OR REPLACE INTO NBA_API_GAME_IDS (DATE, GAME_ID)
+            VALUES (?, ?)
+
+        """, (str(curr_date), gameId))
+
+    conn.commit()
+
+    print("NBA_API game ids updated")
+
 def get_odds_api_ids(API_KEY, date_str, conn):
 
     print(f"Finding odds_api game ids for {date_str}...")
@@ -496,6 +531,13 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
 
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
+    check_for_existing = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?", conn, params=(str(curr_date),))
+
+    if not check_for_existing.empty:
+
+        print(f"Already found a scoreboard to roster df for {curr_date}")
+        return check_for_existing
+
     if curr_date == str(today):
 
         board = scoreboard.ScoreBoard()
@@ -677,7 +719,9 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
 
     """, rows)
 
-def player_vs_team_or_last_20(scoreboard_to_team_roster_df, date, current_season_start_date, conn):
+    return scoreboard_to_team_roster_df
+
+def player_vs_team_or_last_20(scoreboard_to_team_roster_df, curr_date, current_season_start_date, conn):
 
     config = load_config()
     
@@ -715,16 +759,17 @@ def player_vs_team_or_last_20(scoreboard_to_team_roster_df, date, current_season
             return player_vs_team_and_last_20_df
 
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PLAYER_VS_TEAM_OR_LAST_20_JSONS WHERE DATE = ?", (str(date),))
+    cursor.execute("SELECT * FROM PLAYER_VS_TEAM_OR_LAST_20_JSONS WHERE DATE = ?", (str(curr_date),))
     fetch = cursor.fetchall()
 
     if fetch:
         
+        print(f"Already found a player vs team or last 20 json for {curr_date}")
         df = pd.read_json(StringIO(fetch[0][1]))
 
         return df
 
-    print(f"\nFinding player game logs for {date}\n")
+    print(f"\nFinding player game logs for {curr_date}\n")
 
     player_names = scoreboard_to_team_roster_df['PLAYER'].to_list()
     player_ids = scoreboard_to_team_roster_df["PLAYER_ID"].tolist()
@@ -735,23 +780,23 @@ def player_vs_team_or_last_20(scoreboard_to_team_roster_df, date, current_season
 
     for player_name, player_id, opp_id in list(zip(player_names, player_ids, opposition_team_ids)):
         
-        curr_df = find_player_game_logs_df(all_player_game_logs, player_name, player_id, opp_id, str(date))
+        curr_df = find_player_game_logs_df(all_player_game_logs, player_name, player_id, opp_id, str(curr_date))
 
         if not curr_df.empty:
             dfs.append(curr_df)
         
     player_vs_team_or_last_20_df = pd.concat(dfs, ignore_index=True)
 
-    player_vs_team_or_last_20_path = os.path.join(config.GAME_FILES_PATH, str(date), 'player_vs_team_or_last_20.json')
+    player_vs_team_or_last_20_path = os.path.join(config.GAME_FILES_PATH, str(curr_date), 'player_vs_team_or_last_20.json')
 
     player_vs_team_or_last_20_df.to_json(player_vs_team_or_last_20_path, orient='records', indent=4)
 
-    cursor.execute("INSERT OR REPLACE INTO PLAYER_VS_TEAM_OR_LAST_20_JSONS VALUES(?, ?)", (str(date), player_vs_team_or_last_20_df.to_json()))
+    cursor.execute("INSERT OR REPLACE INTO PLAYER_VS_TEAM_OR_LAST_20_JSONS VALUES(?, ?)", (str(curr_date), player_vs_team_or_last_20_df.to_json()))
     conn.commit()
 
     return player_vs_team_or_last_20_df
 
-def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, season_start_date):
+def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, curr_date, conn, season_start_date):
 
     config = load_config()
     
@@ -765,7 +810,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                     (game_logs['GAME_DATE'] < str(curr_date)) &
                     (game_logs['PLAYER_ID'] == player_id) &
                     (game_logs['MIN'] > 0)
-                ]
+                ].sort_values("GAME_DATE", ascending=False)
 
                 minutes_list = game_logs['MIN'].to_list()
                 last_3 = []
@@ -811,41 +856,24 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                 average_last_10 = float(sum(last_10) / 10)
 
                 return average_last_3, average_last_5, average_last_7, average_last_10
-
+            
             def minutes_trend_5(curr_date, player_id, player_name, season_game_logs):
-                
+        
                 curr_player_game_logs = season_game_logs[
                     (season_game_logs['GAME_DATE'] < str(curr_date)) &
                     (season_game_logs['PLAYER_ID'] == player_id) &
                     (season_game_logs['MIN'] > 0)
-                ]
-                
-                minutes_list = curr_player_game_logs['MIN'].to_list()
+                ].sort_values("GAME_DATE", ascending=False).iloc[:10]
 
-                last_5 = []
-                average = 0
-
-                if len(minutes_list) == 0:
-
-                    print(f"Could not find games with minutes before {curr_date} for {player_name}.")
-                    return np.nan
-                
-                last_5 = minutes_list[:5]
-
-                if len(last_5) < 2:
+                if curr_player_game_logs.empty:
 
                     return np.nan
                 
-                average = sum(last_5) / len(last_5)
+                avg_last_10 = curr_player_game_logs.iloc[:10]['MIN'].sum() / len(curr_player_game_logs.iloc[:10])
+                avg_last_3 = curr_player_game_logs.iloc[:3]['MIN'].sum() / len(curr_player_game_logs.iloc[:3])
 
-                while len(last_5) < 5:
-
-                    last_5.append(average)
-
-                slope = (last_5[-1] - last_5[0]) / 4
-
-                return slope
-
+                return avg_last_3 - avg_last_10
+            
             def find_position_missing_minutes(conn, curr_date, positions, team_id):
 
                 dfs = []
@@ -875,7 +903,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
                 total_pos_minutes = cat.drop_duplicates('PLAYER_ID')['AVERAGE_MINUTES'].sum()
                 
-                return min(48, total_pos_minutes)
+                return total_pos_minutes
 
             def find_last_10_std_dev(curr_date, player_id, player_name, game_logs):
 
@@ -883,12 +911,14 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                     (game_logs['PLAYER_ID'] == player_id) &
                     (game_logs['GAME_DATE'] < curr_date) &
                     (game_logs['MIN'] > 0)
-                ]
+                ].sort_values("GAME_DATE", ascending=False)
 
                 if current_player_game_logs.empty:
 
                     print(f"Could not find game logs before {curr_date} for {player_name}")
                     return np.nan
+                
+                current_player_game_logs = current_player_game_logs.sort_values("GAME_DATE", ascending=False)
 
                 last_10_games = current_player_game_logs.iloc[:10]['MIN'].to_list()
 
@@ -945,7 +975,8 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                 if game_logs[
 
                     (game_logs['GAME_DATE'] == str(day_before_curr_date)) &
-                    (game_logs['PLAYER_ID'] == player_id)
+                    (game_logs['PLAYER_ID'] == player_id) &
+                    (game_logs['MIN'] > 0)
 
                 ].empty:
                     
@@ -959,7 +990,9 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                     (season_game_logs['PLAYER_ID'] == player_id) &
                     (season_game_logs['GAME_DATE'] < curr_date) &
                     (season_game_logs['MIN'] > 0)
-                ].iloc[:5]
+                ]
+
+                player_game_logs = player_game_logs.sort_values("GAME_DATE", ascending=False).iloc[:5]
 
                 if player_game_logs.empty:
 
@@ -974,9 +1007,10 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                 player_logs = season_game_logs[
 
                     (season_game_logs['PLAYER_ID'] == player_id) &
-                    (season_game_logs['GAME_DATE'] < str(curr_date)) 
-                    
-                ].iloc[:10]
+                    (season_game_logs['GAME_DATE'] < str(curr_date)) &
+                    (season_game_logs['MIN'] > 0)
+
+                ].sort_values("GAME_DATE", ascending=False).iloc[:10]
 
                 if player_logs.empty:
 
@@ -989,9 +1023,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                     (season_game_logs['TEAM_ID'] == team_id) &
                     (season_game_logs['GAME_DATE'] < str(curr_date))
 
-                ].drop_duplicates("GAME_DATE").iloc[:10]
-
-                team_logs = team_logs.sort_values("GAME_DATE", ascending=False)
+                ].sort_values("GAME_DATE", ascending=False).drop_duplicates("GAME_DATE").iloc[:10]
 
                 games_played_last_5 = 0
                 games_played_last_10 = 0
@@ -1021,6 +1053,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
             positions = positions_df[positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
             team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
             player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
+
 
             average_last_3, average_last_5, average_last_7, average_last_10 = avg_last_3_5_7_10(season_game_logs, player_id, str(curr_date))
             minute_trend = minutes_trend_5(str(curr_date), player_id, player_name, season_game_logs)
@@ -1058,7 +1091,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
             season_game_logs=season_game_logs,
             curr_scoreboard=curr_scoreboard,
             positions_df=positions_df,
-            player_id = player_id
+            player_id=player_id
         )])
 
         minutes_projection_model_path = os.path.join(config.XGBOOST_PATH, "minutes_projection_model.pkl")
@@ -1067,7 +1100,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
 
         minutes_projection = model.predict(minutes_projection_features)[0]
 
-        return minutes_projection
+        return float(minutes_projection)
 
     def clean_name(text):
 
@@ -1124,11 +1157,18 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
     system = {}
     conn.create_function("clean_name", 1, clean_name)
 
-    scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE DATE = ?", conn, params=(date,))
+    check_for_existing = pd.read_sql_query("SELECT * FROM SYSTEM WHERE DATE = ?", conn, params=(str(curr_date),))
+
+    if not check_for_existing.empty:
+
+        print(f"Already have a system for {curr_date}")
+        return 1
+
+    scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE DATE = ?", conn, params=(str(curr_date),))
     scoreboard['PLAYER'] = scoreboard['PLAYER'].apply(clean_name)
     player_positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
-    team_totals_df = pd.read_sql_query("SELECT * FROM TEAM_STATS_2025_2026", conn)
-    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE < ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(date, season_start_date))
+    team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER WHERE GAME_DATE < ?", conn, params=(str(curr_date),))
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE < ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(str(curr_date), season_start_date))
 
     if 'name_clean' not in player_vs_team_or_last_20_df.columns:
 
@@ -1143,10 +1183,9 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
         }
 
     system = {}
+    all_features = []
 
     for player, prop_lines in draftkings_sportsbook.items():
-
-        print(f"Calculating score for {player} using scoringv9")
 
         player = clean_name(player)
 
@@ -1161,6 +1200,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
         if clean_name(player) not in player_games:
 
             print(f"Could not find {player} in player_games. Check historical_data.py: Line 1087")
+            sys.exit(1)
             continue
         
         curr_player_vs_team_or_last_20_df = player_games[player]
@@ -1177,32 +1217,42 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, d
                                                         curr_scoreboard=scoreboard, 
                                                         positions_df=player_positions_df, 
                                                         season_start_date=season_start_date, 
-                                                        curr_date=date, 
+                                                        curr_date=curr_date, 
                                                         player_id=player_id, 
                                                         conn=conn
                                                     )
 
         for prop, line in prop_lines.items():
                             
-            curr_score = scoringv9(curr_player_vs_team_or_last_20_df, current_opposition_ID, translation[prop], line, scoreboard, player_positions_df, date, team_totals_df, minutes_projection, season_game_logs)
+            curr_score, curr_features = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
+                                                   translation[prop], line, scoreboard, player_positions_df, 
+                                                   curr_date, team_totals_per_player_df, minutes_projection, 
+                                                   season_game_logs, conn, season_start_date)
+
+            all_features.append(curr_features)
 
             if not curr_score or curr_score == -2:
 
                 continue
             
-            
             system[player][prop] = (float(curr_score), line)
             system[player]['PERSON_ID'] = int(player_vs_team_or_last_20_df[player_vs_team_or_last_20_df['NAME_CLEAN'] == player]['PLAYER_ID'].iloc[0])
     
-    file_path = os.path.join(config.GAME_FILES_PATH, str(date), "scores.json")
+    file_path = os.path.join(config.GAME_FILES_PATH, str(curr_date), "scores.json")
 
     with open(file_path, "w") as f:
 
         json.dump(system, f, indent=4)
+    
+    file_path = os.path.join(config.GAME_FILES_PATH, str(curr_date), "features.json")
+
+    with open(file_path, "w") as f:
+
+        json.dump(all_features, f, indent=4)
 
     return system
 
-def result(scores, date, conn):
+def result(scores, curr_date, conn):
         
     class Node:
 
@@ -1330,6 +1380,8 @@ def result(scores, date, conn):
         
     system = LinkedList()
 
+    rosters = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?", conn, params=(str(curr_date),))
+
     for player_name, score_dict in scores.items():
         
         for prop, score in score_dict.items():
@@ -1339,17 +1391,15 @@ def result(scores, date, conn):
 
             currScore, line = score
 
-            rosters = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?", conn, params=(str(date),))
-            
             curr = rosters[rosters['PLAYER_ID'] == score_dict["PERSON_ID"]]
 
             matchup = curr['MATCHUP'].to_list()[0]
 
-            system.insert_reverse_sorted(player_name, prop, currScore, line, matchup, date, score_dict["PERSON_ID"])
+            system.insert_reverse_sorted(player_name, prop, currScore, line, matchup, curr_date, score_dict["PERSON_ID"])
 
     system_sorted = system.to_array()
 
-    file_path = os.path.join(config.GAME_FILES_PATH, str(date), "system.json")
+    file_path = os.path.join(config.GAME_FILES_PATH, str(curr_date), "system.json")
 
     with open(file_path, "w") as f:
 
@@ -1375,15 +1425,15 @@ def result(scores, date, conn):
 
     return system_sorted
 
-def system_grade(date, conn):
+def system_grade(curr_date, conn):
     
     cursor = conn.cursor()
 
-    today_nba_api_game_ids = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS WHERE DATE = ?", conn, params=(str(date),))
+    today_nba_api_game_ids = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS WHERE DATE = ?", conn, params=(str(curr_date),))
 
     if today_nba_api_game_ids.empty:
 
-        print(f"No games found for {date}")
+        print(f"No games found for {curr_date}")
         return pd.DataFrame()
     
     else:
@@ -1408,7 +1458,7 @@ def system_grade(date, conn):
 
     player_ids = today_box_scores['personId'].to_list()
 
-    system = pd.read_sql_query("SELECT * FROM SYSTEM WHERE DATE = ? ORDER BY SCORE DESC", conn, params=(str(date),))
+    system = pd.read_sql_query("SELECT * FROM SYSTEM WHERE DATE = ? ORDER BY SCORE DESC", conn, params=(str(curr_date),))
 
     system["RESULT"] = pd.NA
 
@@ -1434,7 +1484,7 @@ def system_grade(date, conn):
                 WHERE DATE = ?
                 AND PLAYER_ID = ?
 
-            """, (str(date), pid))
+            """, (str(curr_date), pid))
 
             continue
         
@@ -1501,7 +1551,7 @@ def system_grade(date, conn):
                 AND PLAYER_ID = ?
                 AND PROP = ?
                         
-                """, (result, date, pid, prop))
+                """, (result, curr_date, pid, prop))
 
     conn.commit()
 
@@ -1512,17 +1562,15 @@ def system_grade(date, conn):
         
     ].copy()
 
-    date_dir_path = os.path.join(config.GAME_FILES_PATH, date,)
+    date_dir_path = os.path.join(config.GAME_FILES_PATH, curr_date,)
 
     if not os.path.isdir(date_dir_path):
 
         os.mkdir(date_dir_path)
 
-    file_path = os.path.join(config.GAME_FILES_PATH, date, "system_grade.json")
+    file_path = os.path.join(config.GAME_FILES_PATH, curr_date, "system_grade.json")
 
     system.to_json(file_path, orient="records", indent=4)
-
-    return system
 
 def update_props_training_table(season_start_date, curr_date, conn):
 
@@ -1778,52 +1826,8 @@ def update_props_training_table(season_start_date, curr_date, conn):
                 
                 return games_played_last_5, games_played_last_10
 
-                player_logs = season_game_logs[
-
-                    (season_game_logs['PLAYER_ID'] == player_id) &
-                    (season_game_logs['GAME_DATE'] < str(curr_date)) 
-                    
-                ].iloc[:10]
-
-                if player_logs.empty:
-
-                    return np.nan, np.nan
-
-                team_id = player_logs['TEAM_ID'].iloc[0]
-
-                team_logs = season_game_logs[
-
-                    (season_game_logs['TEAM_ID'] == team_id) &
-                    (season_game_logs['GAME_DATE'] < str(curr_date))
-
-                ].drop_duplicates("GAME_DATE").iloc[:10]
-
-                games_played_last_5 = 0
-                games_played_last_10 = 0
-                team_logs_game_id_list = team_logs['GAME_ID'].to_list()
-                player_logs_game_id_list = player_logs['GAME_ID'].to_list()
-
-                i = 0
-
-                for gameId in team_logs_game_id_list:
-                    
-                    if gameId in player_logs_game_id_list:
-
-                        if games_played_last_5 < 5:
-
-                            games_played_last_5 += 1
-                        
-                        games_played_last_10 += 1
-                        
-                    i += 1
-
-                    if i == 10:
-
-                        break
-                
-                return games_played_last_5, games_played_last_10
-
             positions = positions_df[positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
+
             team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
             player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
 
@@ -1874,13 +1878,13 @@ def update_props_training_table(season_start_date, curr_date, conn):
 
         minutes_projection = model.predict(minutes_projection_features)[0]
 
-        return minutes_projection
+        return float(minutes_projection)
 
-    def find_team_totals_and_player_share(curr_game_logs, stat, team_totals, team_id):
-            
+    def find_team_totals_and_player_share(curr_game_logs, stat, team_totals_per_player_df):
+
         if curr_game_logs.empty:
 
-            return np.nan, np.nan, np.nan, np.nan
+            return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
 
         col_name = f"PCT_{stat}_USAGE"
 
@@ -1889,58 +1893,93 @@ def update_props_training_table(season_start_date, curr_date, conn):
         last_5_player_games = curr_game_logs.iloc[:5]
         last_10_player_games = curr_game_logs.iloc[:10]
 
-        all_team_ids = curr_game_logs.drop_duplicates("TEAM_ID")['TEAM_ID'].to_list()
+        l5_game_ids = last_5_player_games['GAME_ID'].to_list()
+        l5_pct = last_5_player_games[col_name].to_list()
+        l5_minutes = last_5_player_games['MIN'].to_list()
+        l5_games = list(zip(l5_game_ids, l5_pct, l5_minutes))
 
-        curr_team_totals_df_list = []
+        l10_game_ids = last_10_player_games['GAME_ID'].to_list()
+        l10_pct = last_10_player_games[col_name].to_list()
+        l10_minutes = last_10_player_games['MIN'].to_list()
+        l10_games = list(zip(l10_game_ids, l10_pct, l10_minutes))
 
-        for game_id in last_10_player_games['GAME_ID'].to_list():
-            
-            if isinstance(game_id, int):
-                
-                game_id = "00" + str(game_id)
+        corrupted_in_last_5 = set()
+        corrupted_in_last_10 = set()
 
-            curr_game_team_total = team_totals[
-                (team_totals['GAME_ID'] == game_id) &
-                (team_totals['TEAM_ID'] == str(team_id))
-            ]
+        for game_id in l5_game_ids:
 
-            if curr_game_team_total.empty:
-                
-                for curr_team_id in all_team_ids:
+            if game_id in config.CORRUPTED_GAME_ROTATION_GAME_IDS:
 
-                    curr_game_team_total = team_totals[
-                        (team_totals['GAME_ID'] == game_id) &
-                        (team_totals['TEAM_ID'] == str(curr_team_id))
-                    ]
+                corrupted_in_last_5.add(game_id)
 
-                    if not curr_game_team_total.empty:
+        for game_id in l10_game_ids:
 
-                        break
-            
-            if curr_game_team_total.empty:
-                print(f"Current Game ID Team Totals are empty..")
-                print(game_id, all_team_ids)
-                sys.exit(1)
+            if game_id in config.CORRUPTED_GAME_ROTATION_GAME_IDS:
 
-            curr_team_totals_df_list.append(curr_game_team_total)
+                corrupted_in_last_10.add(game_id)
+        
+        slice_for_last_5 = len(last_5_player_games) - len(corrupted_in_last_5)
+        slice_for_last_10 = len(last_10_player_games) - len(corrupted_in_last_10)
 
-        if not curr_team_totals_df_list:
+        team_totals_per_player_L5 = team_totals_per_player_df[:slice_for_last_5]
+        team_totals_per_player_L10 = team_totals_per_player_df[:slice_for_last_10]
 
-            print(f"Could not find team totals for {game_id} and team: {team_id}")
-            sys.exit(1)
-            
-        curr_team_totals_df = pd.concat(curr_team_totals_df_list, ignore_index=True)
+        avg_last_5_team_totals = (
+            np.nan
+            if len(team_totals_per_player_L5) == 0
+            else team_totals_per_player_L5[stat].sum() / len(team_totals_per_player_L5)
+        )
+        avg_last_10_team_totals = (
+            np.nan
+            if len(team_totals_per_player_L10) == 0
+            else team_totals_per_player_L10[stat].sum() / len(team_totals_per_player_L10)
+        )
 
-        avg_last_5_pct_share = float(last_5_player_games[col_name].sum()) / len(last_5_player_games[col_name])
-        avg_last_10_pct_share = float(last_10_player_games[col_name].sum()) / len(last_10_player_games[col_name])
+        avg_last_5_minutes = 0
+        avg_last_10_minutes = 0
+        avg_last_5_pct_share = 0
+        avg_last_10_pct_share = 0
 
-        team_totals_last_5 = curr_team_totals_df.iloc[:5]
-        team_totals_last_10 = curr_team_totals_df.iloc[:10]
+        for gid, curr_pct, minutes in l5_games:
 
-        avg_last_5_team_totals = float(team_totals_last_5[stat].sum()) / len(team_totals_last_5)
-        avg_last_10_team_totals = float(team_totals_last_10[stat].sum()) / len(team_totals_last_10)
+            if gid in corrupted_in_last_5:
 
-        return avg_last_5_pct_share, avg_last_10_pct_share, avg_last_5_team_totals, avg_last_10_team_totals
+                continue
+
+            avg_last_5_pct_share += curr_pct
+            avg_last_5_minutes += minutes
+        
+        for gid, curr_pct, minutes in l10_games:
+
+            if gid in corrupted_in_last_10:
+
+                continue
+
+            avg_last_10_pct_share += curr_pct
+            avg_last_10_minutes += minutes
+    
+        avg_last_5_pct_share = (
+            np.nan
+            if (len(last_5_player_games) - len(corrupted_in_last_5)) == 0
+            else avg_last_5_pct_share / (len(last_5_player_games) - len(corrupted_in_last_5))
+        )
+        avg_last_10_pct_share = (
+            np.nan
+            if (len(last_10_player_games) - len(corrupted_in_last_10)) == 0
+            else avg_last_10_pct_share / (len(last_10_player_games) - len(corrupted_in_last_10))
+        )
+        avg_last_5_minutes = (
+            np.nan
+            if (len(last_5_player_games) - len(corrupted_in_last_5)) == 0
+            else avg_last_5_minutes / (len(last_5_player_games) - len(corrupted_in_last_5))
+        )
+        avg_last_10_minutes = (
+            np.nan
+            if (len(last_10_player_games) - len(corrupted_in_last_10)) == 0
+            else avg_last_10_minutes / (len(last_10_player_games) - len(corrupted_in_last_10))
+        )
+        
+        return avg_last_5_pct_share, avg_last_10_pct_share, avg_last_5_team_totals, avg_last_10_team_totals, avg_last_5_minutes, avg_last_10_minutes
 
     def find_defensive_rank(conn, positions, team_id, prop):
 
@@ -1959,7 +1998,7 @@ def update_props_training_table(season_start_date, curr_date, conn):
         if player_game_logs_before_curr_date_overall.empty:
 
             print(f"Couldn't find player game logs before the overall date for {player_name}")
-            return [], np.nan
+            return [], np.nan, np.nan, np.nan, np.nan, np.nan
 
         overall_games_for_current_prop = player_game_logs_before_curr_date_overall[prop].to_list()
 
@@ -1967,10 +2006,6 @@ def update_props_training_table(season_start_date, curr_date, conn):
         average_L5_minus_line = sum(overall_games_for_current_prop[:5]) / len(overall_games_for_current_prop[:5]) - prop_line
         average_L7_minus_line = sum(overall_games_for_current_prop[:7]) / len(overall_games_for_current_prop[:7]) - prop_line
         average_L10_minus_line = sum(overall_games_for_current_prop[:10]) / len(overall_games_for_current_prop[:10]) - prop_line
-    
-        if not overall_games_for_current_prop:
-
-            return np.nan, np.nan
 
         average_overall_last_20_minus_line = sum(overall_games_for_current_prop[:20]) / len(overall_games_for_current_prop[:20]) - prop_line
 
@@ -1992,7 +2027,7 @@ def update_props_training_table(season_start_date, curr_date, conn):
 
         if player_game_logs_before_curr_date_vs_opp.empty:
 
-            print(f"Could not find gamelogs for current player before {curr_date}")
+            print(f"Could not find gamelogs against opposition for current player before {curr_date}")
             return [], np.nan, np.nan, np.nan, 0
 
         opp_games_for_current_prop = player_game_logs_before_curr_date_vs_opp[prop].to_list()
@@ -2007,14 +2042,40 @@ def update_props_training_table(season_start_date, curr_date, conn):
 
             last_5_games_vs_opp_list.append(opp_games_for_current_prop[i])
         
-        while len(last_5_games_vs_opp_list) < 5:
-
-            last_5_games_vs_opp_list.append(None)
-        
         return last_5_games_vs_opp_list, average_L3_minus_line, average_L7_minus_line, average_L10_minus_line, opp_game_count
-
-    team_totals_df = pd.read_sql_query("SELECT * FROM TEAM_STATS_2025_2026", conn)
     
+    def find_position_missing_stats(conn, curr_date, positions, team_id, stat):
+
+        dfs = []
+
+        for position in positions:
+
+            df = pd.read_sql_query("""
+
+                    SELECT d.*
+                    FROM DNPS d
+                    JOIN PLAYER_POSITIONS p
+                        ON p.PLAYER_ID = d.PLAYER_ID
+                    WHERE p.POSITION = ?
+                    AND d.GAME_DATE = ?
+                    AND d.TEAM_ID = ?
+                                
+                """, conn, params=(position, str(curr_date), team_id))
+
+            if not df.empty:
+
+                dfs.append(df)
+        
+        if not dfs:
+
+            return 0
+
+        cat = pd.concat(dfs, ignore_index=True)
+
+        total_pos_stat = cat.drop_duplicates('PLAYER_ID')[f'AVERAGE_{stat}'].sum()
+        
+        return total_pos_stat
+
     cursor = conn.cursor()
 
     props = [
@@ -2051,43 +2112,44 @@ def update_props_training_table(season_start_date, curr_date, conn):
     }
 
     nofind_player_ids = []
-    two_years_from_curr_date = str(curr_date - timedelta(days=730))
-
-    #just curr_date in string form instead of date form
-    game_date = str(curr_date)
-    today = datetime.strftime(datetime.now(ZoneInfo(config.TIMEZONE)).date(), "%Y-%m-%d")
 
     # all games during and before the curr_date ordered by game date descending
     game_logs = pd.read_sql_query('SELECT * FROM player_game_logs WHERE GAME_DATE <= ? ORDER BY GAME_DATE DESC', conn, params=(str(curr_date),))
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? AND GAME_DATE < ? ORDER BY GAME_DATE DESC", conn, params=(season_start_date, str(curr_date),))
+    player_positions_df = pd.read_sql_query('SELECT * FROM PLAYER_POSITIONS', conn,)
+    team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER", conn)
 
-    if game_logs[game_logs['GAME_DATE'] == game_date].empty and game_date < today:
+    game_date = str(curr_date)
+    datetime_curr_date = datetime.strptime(game_date, "%Y-%m-%d").date()
+    two_years_from_curr_date = str(datetime_curr_date - timedelta(days=730))
 
-        print(f"Game logs for {curr_date} not found")
-        sys.exit(1)
+    curr_game_logs = game_logs[game_logs['GAME_DATE'] <= str(curr_date)].copy()
+    curr_game_logs = curr_game_logs.sort_values("GAME_DATE", ascending=False)
 
-    system = pd.read_sql_query('SELECT * FROM SYSTEM WHERE DATE = ?', conn, params=(str(curr_date),))
+    if curr_game_logs[curr_game_logs['GAME_DATE'] == game_date].empty and game_date < str(curr_date):
 
-    if system.empty:
+        print(f"Game logs for {curr_date} not found. Check training_tables.py Line 536.")
+        curr_date += timedelta(days=1)
+        return
+
+    curr_scoreboard = pd.read_sql_query('SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?', conn, params=(str(curr_date),))
+    curr_system = pd.read_sql_query('SELECT * FROM SYSTEM WHERE DATE = ?', conn, params=(str(curr_date),))
+
+    if curr_system.empty:
 
         print(f"Could not find game props for {curr_date}..")
         curr_date += timedelta(days=1)
         return
 
-    # used to find the games for curr_date
-    scoreboard = pd.read_sql_query('SELECT * FROM SCOREBOARD_TO_ROSTER WHERE date = ?', conn, params=(str(curr_date),))
-    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE > ? ORDER BY GAME_DATE DESC", conn, params=(season_start_date,))
-
-    player_positions_df = pd.read_sql_query('SELECT * FROM PLAYER_POSITIONS', conn,)
-
     # finds all player ids for the players that are playing during curr_date
-    player_ids = scoreboard.drop_duplicates('PLAYER_ID')['PLAYER_ID'].to_list()
+    player_ids = curr_scoreboard.drop_duplicates('PLAYER_ID')['PLAYER_ID'].to_list()
     
     # iterates through all players playing during curr_date
     for player_id in player_ids:
 
         minutes_projection = find_minutes_projection(
             season_game_logs=season_game_logs, 
-            curr_scoreboard=scoreboard, 
+            curr_scoreboard=curr_scoreboard, 
             positions_df=player_positions_df, 
             season_start_date=season_start_date, 
             curr_date=curr_date, 
@@ -2095,21 +2157,23 @@ def update_props_training_table(season_start_date, curr_date, conn):
             conn=conn
         )
 
-        player_name = scoreboard[scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
-        team_id = scoreboard[scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
+        player_name = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['PLAYER'].iloc[0]
+        team_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['TeamID'].iloc[0]
         matchup = (
             0
-            if '@' in scoreboard[scoreboard['PLAYER_ID'] == player_id]['MATCHUP'].iloc[0]
+            if '@' in curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['MATCHUP'].iloc[0]
             else 1
         )
         
-        curr_player_game_logs = game_logs[game_logs['PLAYER_ID'] == player_id]
+        curr_player_game_logs = curr_game_logs[curr_game_logs['PLAYER_ID'] == player_id]
 
         if curr_player_game_logs[curr_player_game_logs['GAME_DATE'] == game_date].empty:
             
             print(f"Could not find a game log for {player_name} on {game_date}.")
             nofind_player_ids.append(player_id)
             continue
+            
+        
 
         # finds player positions
         player_positions = player_positions_df[player_positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
@@ -2121,8 +2185,12 @@ def update_props_training_table(season_start_date, curr_date, conn):
 
         player_box_score = curr_player_game_logs[curr_player_game_logs['GAME_DATE'] == game_date]
 
+        if player_box_score['MIN'].iloc[0] == 0:
+
+            continue
+
         # opposition_id for the current matchup of curr_date
-        opposition_id = scoreboard[scoreboard['PLAYER_ID'] == player_id]['opposition_team_id'].iloc[0]
+        opposition_id = curr_scoreboard[curr_scoreboard['PLAYER_ID'] == player_id]['opposition_team_id'].iloc[0]
 
         # finds player games against opp before current date
         player_game_logs_before_curr_date_vs_opp = curr_player_game_logs[
@@ -2145,42 +2213,70 @@ def update_props_training_table(season_start_date, curr_date, conn):
         games_played_this_season = len(player_game_logs_before_curr_date_overall)
 
         extra_pct_dict = {}
+        share_dict = {}
+
+        curr_team_total_per_player = team_totals_per_player_df[
+            (team_totals_per_player_df['PLAYER_ID'] == player_id) &
+            (team_totals_per_player_df['MIN'] > 0)
+        ]
+
+        player_game_logs_before_curr_date_overall = player_game_logs_before_curr_date_overall.sort_values("GAME_DATE", ascending=False)
+        player_game_logs_before_curr_date_vs_opp = player_game_logs_before_curr_date_vs_opp.sort_values("GAME_DATE", ascending=False)
+        curr_team_total_per_player = curr_team_total_per_player.sort_values('GAME_DATE', ascending=False)
 
         for prop in props:
-            
-            last_5_pct_share, last_10_pct_share, avg_last_5_team_totals, avg_last_10_team_totals = find_team_totals_and_player_share(
-                curr_game_logs=player_game_logs_before_curr_date_overall, 
-                stat=prop,
-                team_totals=team_totals_df,
-                team_id=team_id
-            )
-            
-            current_player_prop_row = system[
-                (system['PLAYER_ID'] == player_id) &
-                (system['PROP'] == translation[prop])
+
+            current_player_prop_row = curr_system[
+                (curr_system['PLAYER_ID'] == player_id) &
+                (curr_system['PROP'] == translation[prop])
             ]
 
             if current_player_prop_row.empty:
 
                 continue
+            
+            (avg_last_5_pct_share, avg_last_10_pct_share, 
+                avg_last_5_team_totals, avg_last_10_team_totals, 
+                avg_last_5_minutes, avg_last_10_minutes) = find_team_totals_and_player_share(
+                curr_game_logs=player_game_logs_before_curr_date_overall, 
+                stat=prop,
+                team_totals_per_player_df=curr_team_total_per_player,
+            )
 
             prop_line = current_player_prop_row['LINE'].iloc[0]
 
-            if np.isnan(minutes_projection):
+            if np.isnan(minutes_projection) or avg_last_5_minutes == 0 or np.isnan(avg_last_5_pct_share):
 
                 expected_from_last_5_minus_line = np.nan
                 expected_from_last_10_minus_line = np.nan
             
             else:
 
-                expected_from_last_5_minus_line = ((avg_last_5_team_totals / 240) * minutes_projection * last_5_pct_share) - prop_line
-                expected_from_last_10_minus_line = ((avg_last_10_team_totals / 240) * minutes_projection * last_10_pct_share) - prop_line
-
+                expected_from_last_5_minus_line = (((avg_last_5_team_totals * avg_last_5_pct_share) / avg_last_5_minutes) * minutes_projection) - prop_line
+                expected_from_last_10_minus_line = (((avg_last_10_team_totals * avg_last_10_pct_share) / avg_last_10_minutes) * minutes_projection) - prop_line
 
             extra_pct_dict[f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE"] = expected_from_last_5_minus_line
             extra_pct_dict[f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE"] = expected_from_last_10_minus_line
 
+            share_dict[f"AVG_LAST_5_{prop}_SHARE"] = avg_last_5_pct_share
+            share_dict[f"AVG_LAST_10_{prop}_SHARE"] = avg_last_10_pct_share
+
             stat_line_for_current_game = player_box_score[prop].iloc[0]
+
+            if prop not in {'BLK', 'STL'}:
+            
+                pos_mis_stat = find_position_missing_stats(conn, str(curr_date), player_positions, int(team_id), prop)
+
+                cursor.execute("""
+
+                UPDATE PROPS_TRAINING_TABLE
+                SET 
+                    POSITION_MISSING_STAT = ?
+                WHERE PROP = ?
+                AND GAME_DATE = ?
+                AND PLAYER_ID = ?
+                            
+                """, (pos_mis_stat, prop, str(curr_date), player_id))
 
             if stat_line_for_current_game > prop_line:
 
@@ -2191,21 +2287,21 @@ def update_props_training_table(season_start_date, curr_date, conn):
                 result = 0
 
             print(f"Updating the PROPS_TRAINING_TABLE for {player_name} on {game_date} for prop {prop}...")
-            # defensive rank based on team and statline
 
+            # defensive rank based on team and statline
             def_rank = find_defensive_rank(conn, player_positions, opposition_id, prop)
             (
-                last_5_games_overall, average_overall_last_20_minus_line,
-                average_L3_overall_minus_line, average_L5_overall_minus_line,
-                average_L7_overall_minus_line, average_L10_overall_minus_line
+            last_5_games_overall, average_overall_last_20_minus_line,
+            average_L3_overall_minus_line, average_L5_overall_minus_line,
+            average_L7_overall_minus_line, average_L10_overall_minus_line
             ) = find_overall_games(player_game_logs_before_curr_date_overall, prop, prop_line)
-            
+        
             (
                 last_5_games_vs_opp, average_L3_vs_opp_minus_line, 
                 average_L7_vs_opp_minus_line, average_L10_vs_opp_minus_line, 
                 opp_game_count
             ) = find_opp_games(player_game_logs_before_curr_date_vs_opp, prop, prop_line)
-
+            
             last_game = (
                 last_5_games_overall[0] - prop_line
                 if len(last_5_games_overall) > 0
@@ -2233,27 +2329,27 @@ def update_props_training_table(season_start_date, curr_date, conn):
             )
             last_game_vs_opp = (
                 last_5_games_vs_opp[0] - prop_line
-                if len(last_5_games_vs_opp[0]) > 0
+                if len(last_5_games_vs_opp) > 0
                 else np.nan
             )
             second_last_game_vs_opp = (
                 last_5_games_vs_opp[1] - prop_line
-                if len(last_5_games_vs_opp[1]) > 1
+                if len(last_5_games_vs_opp) > 1
                 else np.nan
             )
             third_last_game_vs_opp = (
                 last_5_games_vs_opp[2] - prop_line
-                if len(last_5_games_vs_opp[2]) > 2
+                if len(last_5_games_vs_opp) > 2
                 else np.nan
             )
             fourth_last_game_vs_opp = (
                 last_5_games_vs_opp[3] - prop_line
-                if len(last_5_games_vs_opp[3]) > 3
+                if len(last_5_games_vs_opp) > 3
                 else np.nan
             )
             fifth_last_game_vs_opp = (
                 last_5_games_vs_opp[4] - prop_line
-                if len(last_5_games_vs_opp[4]) > 4
+                if len(last_5_games_vs_opp) > 4
                 else np.nan
             )
 
@@ -2269,26 +2365,27 @@ def update_props_training_table(season_start_date, curr_date, conn):
                 'THIRD_LAST_GAME': third_last_game,
                 'FOURTH_LAST_GAME': fourth_last_game,
                 'FIFTH_LAST_GAME': fifth_last_game,
+                'AVG_LAST_3_OVERALL': average_L3_overall_minus_line,
+                'AVG_LAST_5_OVERALL': average_L5_overall_minus_line,
+                'AVG_LAST_7_OVERALL': average_L7_overall_minus_line,
+                'AVG_LAST_10_OVERALL': average_L10_overall_minus_line,
                 'AVERAGE_LAST_20': average_overall_last_20_minus_line,
                 'LAST_GAME_VS_OPP': last_game_vs_opp,
                 'SECOND_LAST_GAME_VS_OPP': second_last_game_vs_opp,
                 'THIRD_LAST_GAME_VS_OPP': third_last_game_vs_opp,
                 'FOURTH_LAST_GAME_VS_OPP': fourth_last_game_vs_opp,
                 'FIFTH_LAST_GAME_VS_OPP': fifth_last_game_vs_opp,
-                'AVERAGE_LAST_10_VS_OPP': average_L10_vs_opp_minus_line,
                 'AVG_LAST_3_VS_OPP': average_L3_vs_opp_minus_line,
                 'AVG_LAST_7_VS_OPP': average_L7_vs_opp_minus_line,
+                'AVERAGE_LAST_10_VS_OPP': average_L10_vs_opp_minus_line,
                 'DEF_RANK': float(def_rank),
                 'OPP_GAME_COUNT': opp_game_count,
                 'TARGET': int(result),
                 'VENUE': matchup,
-                'MINUTES_PROJECTION': minutes_projection,
-                'AVG_LAST_3_OVERALL': average_L3_overall_minus_line,
-                'AVG_LAST_5_OVERALL': average_L5_overall_minus_line,
-                'AVG_LAST_7_OVERALL': average_L7_overall_minus_line,
-                'AVG_LAST_10_OVERALL': average_L10_overall_minus_line,
-                'MINUTES_PROJECTION': minutes_projection,
-                'GAMES_PLAYED_THIS_SEASON': games_played_this_season
+                'GAMES_PLAYED_THIS_SEASON': games_played_this_season,
+                'MINUTES_PROJECTION': float(minutes_projection),
+                "POSITION_MISSING_STAT": pos_mis_stat
+
             }
 
             placeholders = ", ".join(['?']*len(training_table_row))
@@ -2300,6 +2397,10 @@ def update_props_training_table(season_start_date, curr_date, conn):
             cursor.execute(query, stats)
         
         for k, v in extra_pct_dict.items():
+
+            cursor.execute(f"UPDATE PROPS_TRAINING_TABLE SET {k} = ? WHERE GAME_DATE = ? AND PLAYER_ID = ?", (v, str(curr_date), player_id))
+        
+        for k, v in share_dict.items():
 
             cursor.execute(f"UPDATE PROPS_TRAINING_TABLE SET {k} = ? WHERE GAME_DATE = ? AND PLAYER_ID = ?", (v, str(curr_date), player_id))
     
@@ -2316,8 +2417,8 @@ if __name__ == "__main__":
     current_season = "2024-25"
     current_season_start_date = "2024-10-22"
 
-    curr_date_str = "2025-01-10"
-    end_date_str = "2025-01-10"
+    curr_date_str = "2025-01-01"
+    end_date_str = "2025-01-01"
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
 
@@ -2337,6 +2438,8 @@ if __name__ == "__main__":
 
             os.mkdir(current_path)
 
+        get_nba_api_game_ids(conn=conn, curr_date=str(curr_date))
+
         current_ids = get_odds_api_ids(API_KEY, str(curr_date), conn)
 
         if not current_ids:
@@ -2355,12 +2458,15 @@ if __name__ == "__main__":
 
         scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, str(curr_date), conn, current_season_start_date)
 
-        result(scores, str(curr_date), conn)
+        if scores != 1:
 
-        system_grade(str(curr_date), conn)
+            result(scores, str(curr_date), conn)
+
+            system_grade(str(curr_date), conn)
 
         update_props_training_table(current_season_start_date, curr_date, conn)
 
+        print(f"Finished historical data for {curr_date}")
         curr_date += timedelta(days=1)
     
     print(f"Updated sql tables from {curr_date_str} - {end_date_str}.")

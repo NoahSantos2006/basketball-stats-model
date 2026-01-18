@@ -556,11 +556,11 @@ def update_props_training_table(season_start_date, conn):
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     check_for_latest_date = pd.read_sql_query("SELECT * FROM PROPS_TRAINING_TABLE ORDER BY GAME_DATE DESC", conn)
     latest_date_str = check_for_latest_date['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
 
     # all games during and before the curr_date ordered by game date descending
-    game_logs = pd.read_sql_query('SELECT * FROM player_game_logs ORDER BY GAME_DATE DESC', conn)
-    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(season_start_date,))
+    game_logs = pd.read_sql_query('SELECT * FROM player_game_logs', conn)
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(season_start_date,))
     system = pd.read_sql_query('SELECT * FROM SYSTEM', conn)
     scoreboard = pd.read_sql_query('SELECT * FROM SCOREBOARD_TO_ROSTER', conn)
     player_positions_df = pd.read_sql_query('SELECT * FROM PLAYER_POSITIONS', conn,)
@@ -621,8 +621,7 @@ def update_props_training_table(season_start_date, conn):
                 nofind_player_ids.append(player_id)
                 continue
                 
-            
-
+        
             # finds player positions
             player_positions = player_positions_df[player_positions_df['PLAYER_ID'] == player_id]['POSITION'].to_list()
 
@@ -646,7 +645,7 @@ def update_props_training_table(season_start_date, conn):
                 (curr_player_game_logs['OPPOSITION_ID'] == opposition_id) & # if the opposition id is the same as the scoreboard's
                 (curr_player_game_logs['GAME_DATE'] >= two_years_from_curr_date) & # needs to be later than two years ago
                 (curr_player_game_logs['MIN'] > 0) # needs to play more than 0 minutes
-            ]
+            ].sort_values("GAME_DATE", ascending=False)
 
             # finds total number of games against opp
             opp_game_count = len(player_game_logs_before_curr_date_vs_opp)
@@ -656,7 +655,7 @@ def update_props_training_table(season_start_date, conn):
                 (curr_player_game_logs['GAME_DATE'] < game_date) & # before curr date
                 (curr_player_game_logs['GAME_DATE'] >= season_start_date) & # needs to be during this season
                 (curr_player_game_logs['MIN'] > 0) # needs to player more than 0 minutes
-            ]
+            ].sort_values("GAME_DATE", ascending=False)
 
             games_played_this_season = len(player_game_logs_before_curr_date_overall)
 
@@ -665,12 +664,9 @@ def update_props_training_table(season_start_date, conn):
 
             curr_team_total_per_player = team_totals_per_player_df[
                 (team_totals_per_player_df['PLAYER_ID'] == player_id) &
-                (team_totals_per_player_df['MIN'] > 0)
-            ]
-
-            player_game_logs_before_curr_date_overall = player_game_logs_before_curr_date_overall.sort_values("GAME_DATE", ascending=False)
-            player_game_logs_before_curr_date_vs_opp = player_game_logs_before_curr_date_vs_opp.sort_values("GAME_DATE", ascending=False)
-            curr_team_total_per_player = curr_team_total_per_player.sort_values('GAME_DATE', ascending=False)
+                (team_totals_per_player_df['MIN'] > 0) &
+                (team_totals_per_player_df['GAME_DATE'] < game_date)
+            ].sort_values("GAME_DATE", ascending=False)
 
             for prop in props:
 
@@ -1121,7 +1117,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
     positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
 
     latest_date_str = pd.read_sql_query("SELECT * FROM MINUTES_PROJECTION_TRAINING ORDER BY GAME_DATE DESC LIMIT 1", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
     end_date = datetime.now(ZoneInfo("America/New_York")).date()
     cursor = conn.cursor()
 
