@@ -2091,7 +2091,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
 
                 avg_last_10_pct_share += curr_pct
                 avg_last_10_minutes += minutes
-        
+                    
             avg_last_5_pct_share = (
                 np.nan
                 if (len(last_5_player_games) - len(corrupted_in_last_5)) == 0

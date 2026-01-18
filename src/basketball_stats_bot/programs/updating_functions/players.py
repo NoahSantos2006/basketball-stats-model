@@ -874,7 +874,7 @@ def update_db_gamelogs(conn):
     # LIMIT - how many rows SQL returns
 
     latest_date_str = pd.read_sql_query("SELECT * FROM player_game_logs ORDER BY GAME_DATE DESC", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
     while curr_date < today:
@@ -932,11 +932,25 @@ def update_scoreboard_to_team_roster(conn, current_season):
 
         def get_roster(home_team_id, teamTricode, opposition_id, opposition_tricode, current_season, venue, curr_game_id):
 
-            roster = commonteamroster.CommonTeamRoster(
-                team_id=home_team_id,
-                season=current_season,
-                timeout=30
-            )
+            while True:
+
+                try:
+                    roster = commonteamroster.CommonTeamRoster(
+                        team_id=home_team_id,
+                        season=current_season,
+                        timeout=30
+                    )
+                    break
+
+                except Timeout as t:
+                    
+                    print(t)
+                    time.sleep(2)
+                    continue
+
+                except:
+
+                    raise
 
             df = roster.get_data_frames()[0]
 
@@ -958,6 +972,70 @@ def update_scoreboard_to_team_roster(conn, current_season):
 
             return df
         
+        def get_past_roster(gid):
+
+            while True:
+
+                try:
+
+                    box = boxscore.BoxScore(game_id=gid)
+                    break
+
+                except Timeout as t:
+
+                    continue
+
+                except json.decoder.JSONDecodeError as j:
+
+                    print(f"Couldn't find a boxscore for {gid}.")
+                    print(j)
+                    return pd.DataFrame()
+                
+                except:
+
+                    raise
+            
+            roster = []
+            temp_dict = {}
+
+            box = box.get_dict()
+
+            for team in ['homeTeam', 'awayTeam']:
+
+                for player in box['game'][team]['players']:
+
+                    temp_dict = {}
+
+                    temp_dict['teamID'] = box['game'][team]['teamId']
+                    temp_dict['PLAYER'] = player['name']
+                    temp_dict['PLAYER_ID'] = player['personId']
+                    temp_dict['date'] = box['game']['gameEt'][:10]
+                    temp_dict['team_tricode'] = box['game'][team]['teamTricode']
+                    
+                    if team == 'homeTeam':
+                        opposition_team = 'awayTeam'
+                    else:
+                        opposition_team = 'homeTeam'
+
+                    temp_dict['opposition_team_id'] = box['game'][opposition_team]['teamId']
+                    temp_dict['opposition_tricode'] = box['game'][opposition_team]['teamTricode']
+                    temp_dict['GAME_ID'] = gid
+
+                    matchup = (
+                        f"{temp_dict['team_tricode']} vs. {temp_dict['opposition_tricode']}"
+                        if team == 'homeTeam'
+                        else f"{temp_dict['team_tricode']} @ {temp_dict['opposition_tricode']}"
+                    )
+
+                    temp_dict['MATCHUP'] = matchup
+                    temp_dict['LeagueID'] = "00"
+
+                    roster.append(pd.DataFrame([temp_dict]))
+
+            roster = pd.concat(roster, ignore_index=True)
+
+            return roster
+
         today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
 
         if curr_date == str(today):
@@ -992,11 +1070,25 @@ def update_scoreboard_to_team_roster(conn, current_season):
                 }
 
         else:
+            
+            while True:
+                
+                try: 
 
-            gamefinder = leaguegamefinder.LeagueGameFinder(
-                        date_from_nullable=curr_date,
-                        date_to_nullable=curr_date
-                    )
+                    gamefinder = leaguegamefinder.LeagueGameFinder(
+                                date_from_nullable=curr_date,
+                                date_to_nullable=curr_date
+                            )
+                    break
+
+                except Timeout as t:
+
+                    print(t)
+                    time.sleep(2)
+                    continue
+
+                except:
+                    raise
 
             games_df = gamefinder.get_data_frames()[0]
             gameIds = list(games_df['GAME_ID'].drop_duplicates())
@@ -1064,7 +1156,6 @@ def update_scoreboard_to_team_roster(conn, current_season):
             
             today_nba_api_gameIds.append(game)
         
-
         dir_path = os.path.join(config.GAME_FILES_PATH, curr_date)
 
         if not os.path.isdir(dir_path):
@@ -1079,18 +1170,33 @@ def update_scoreboard_to_team_roster(conn, current_season):
 
         dfs = []
 
-        print(f"\nFinding rosters for {curr_date}...\n")
+        print(f"Finding rosters for {curr_date}")
         
         for curr_game_id, game in games_dict.items():
 
-            home_team = game['homeTeam']
-            away_team = game['awayTeam']
+            if str(curr_date) == str(today):
 
-            print(f"Extracting roster from the {home_team['teamName']}\n")
-            dfs.append(get_roster(home_team['teamId'], home_team['teamTricode'], away_team['teamId'], away_team['teamTricode'], current_season, "home", curr_game_id))
+                home_team = game['homeTeam']
+                away_team = game['awayTeam']
 
-            print(f"Extracting roster from the {away_team['teamName']}\n")
-            dfs.append(get_roster(away_team['teamId'], away_team['teamTricode'], home_team['teamId'], home_team['teamTricode'], current_season, "away", curr_game_id))
+                print(f"Extracting roster from the {home_team['teamName']}\n")
+                dfs.append(get_roster(home_team['teamId'], home_team['teamTricode'], away_team['teamId'], away_team['teamTricode'], current_season, "home", curr_game_id))
+
+                print(f"Extracting roster from the {away_team['teamName']}\n")
+                dfs.append(get_roster(away_team['teamId'], away_team['teamTricode'], home_team['teamId'], home_team['teamTricode'], current_season, "away", curr_game_id))
+            
+            else:
+
+                past_roster = get_past_roster(curr_game_id)
+
+                if  not past_roster.empty:
+
+                    dfs.append(past_roster)
+        
+        if not dfs:
+
+            print(f"Could not find games for {curr_date}.")
+            return
         
         scoreboard_to_team_roster_df = pd.concat(dfs, ignore_index=True)
 
@@ -1104,17 +1210,14 @@ def update_scoreboard_to_team_roster(conn, current_season):
         row_names = ", ".join(row)
         placeholders = ", ".join(['?'] * len(row))
 
-        for _, row in scoreboard_to_team_roster_df.iterrows():
+        rows = scoreboard_to_team_roster_df.itertuples(index=False, name=None)
 
-            
-            cursor.execute(f"""
+        cursor.executemany(f"""
 
-                INSERT OR REPLACE INTO SCOREBOARD_TO_ROSTER ({row_names})
-                VALUES ({placeholders})
+            INSERT OR REPLACE INTO SCOREBOARD_TO_ROSTER ({row_names})
+            VALUES ({placeholders})
 
-            """, row.to_list())
-
-            conn.commit()
+        """, rows)
 
     cursor = conn.cursor()
 
@@ -1522,7 +1625,7 @@ def update_team_totals_per_player(conn):
 
                         """, (float(int(stat_recorded) / curr_team_total_per_player_stat), curr_pid, curr_gid))
 
-                    conn.commit()
+                conn.commit()
 
                 player_id = hashmap['PLAYER_ID']
                 minutes = curr_box_score[curr_box_score['PLAYER_ID'] == player_id]['MIN'].iloc[0]

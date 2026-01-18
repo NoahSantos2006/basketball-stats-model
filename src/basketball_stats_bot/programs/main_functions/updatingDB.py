@@ -17,7 +17,6 @@ from basketball_stats_bot.programs.updating_functions.players import (
     update_scoreboard_to_team_roster,
     update_dnps_from_nbainjuries,
     update_team_totals_per_player,
-    update_dnps_from_bref
 )
 from basketball_stats_bot.programs.updating_functions.team_updating import (
     update_defense_vs_position,
@@ -49,8 +48,13 @@ def updateDB(API_KEY, curr_date, current_season_start_date, conn, current_season
     update_minutes_projection_features_table(conn=conn, season_start_date=current_season_start_date)
     update_props_training_table(season_start_date=current_season_start_date, conn=conn)
 
-    train_minutes_projection_model(conn=conn)
-    train_v10_model(conn=conn)
+    user_input = input("Do you want to train the models? (y/n): ").lower()
+    while user_input not in {'y', 'n'}:
+        user_input = input("Do you want to train the models? (y/n): ").lower()
+    
+    if user_input == 'y':
+        train_minutes_projection_model(conn=conn)
+        train_v10_model(conn=conn)
 
     print(f"SQL database updated. ({curr_date})")
 

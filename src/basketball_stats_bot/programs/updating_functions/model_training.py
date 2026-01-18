@@ -115,10 +115,10 @@ def train_minutes_projection_model(conn):
     
     param_dist = {
         "max_depth": [4, 5, 6], # model complexity
-        "learning_rate": [0.03, 0.05, 0.1], # shrinks each tree's contribution, lower = more stable, needs more trees
-        "min_child_weight": [1, 2, 3, 5], # controls how much data a tree split must have before XGboost is allowed to create it
-        "n_estimators": [200, 400, 600], # of trees
-        "gamma": [0, 0.1, 0.25, 0.5, 1.0], # minimum loss reduction to split
+        "learning_rate": [0.03, 0.05, 0.08], # shrinks each tree's contribution, lower = more stable, needs more trees
+        "min_child_weight": [200, 400, 600], # controls how much data a tree split must have before XGboost is allowed to create it
+        "n_estimators": [500, 800, 1200], # of trees
+        "gamma": [0, 0.05, 0.1, 0.3, 1.0], # minimum loss reduction to split
         "subsample": [0.7, 0.9], # % of rows per tree
         "colsample_bytree": [0.5, 0.7], # % of features per tree
         "reg_lambda": [0.5, 1.0, 2.0, 5.0],
@@ -130,10 +130,10 @@ def train_minutes_projection_model(conn):
     search = RandomizedSearchCV(
         estimator=reg_xgb, # base model the RSC will tune
         param_distributions=param_dist, 
-        n_iter=50, # how many differeny hyperparameter combinations to try
+        n_iter=60, # how many differeny hyperparameter combinations to try
         scoring="neg_mean_absolute_error", # scoring metric used to decide which model is "best"
         cv=tscv, # always trains on past and tests on future
-        n_jobs=10, # how many CPU cores to use in parallel
+        n_jobs=-1, # how many CPU cores to use in parallel
         random_state=42, # seed for randomness
         verbose=1 # controls how much output you see
     )
@@ -615,20 +615,21 @@ def train_v10_model(conn):
         clf_xgb = xgb.XGBClassifier(
                                         objective='binary:logistic', # binary classification problem (0s and 1s) uses logistic loss
                                         random_state=42, # sets random seed for row subsampling, colum subsampling and tree construction randomness
-                                        eval_metric='auc', # Area Under the Precision-Recall Curve (focuses on positive-class performance)
+                                        eval_metric='logloss', # Area Under the Precision-Recall Curve (focuses on positive-class performance)
                                         tree_method='hist', # histogram-based tree construction
                                 )
         
         param_dist = {
             "max_depth": [2, 3], # model complexity
-            "learning_rate": [0.03, 0.05], # shrinks each tree's contribution, lower = more stable, needs more trees
-            "min_child_weight": [20, 30, 50], # controls how much data a tree split must have before XGboost is allowed to create it
-            "n_estimators": [100, 200, 300], # of trees
-            "gamma": [1.0, 5.0], # minimum loss reduction to split
+            "learning_rate": [0.02, 0.03, 0.05], # shrinks each tree's contribution, lower = more stable, needs more trees
+            "min_child_weight": [5, 10, 20, 40], # controls how much data a tree split must have before XGboost is allowed to create it
+            "n_estimators": [300, 500, 800], # of trees
+            "gamma": [0, 0.5, 1.0, 2.0], # minimum loss reduction to split
             "subsample": [0.7, 0.9], # % of rows per tree
             "colsample_bytree": [0.5, 0.7], # % of features per tree
             "reg_alpha": [1, 5, 10],
-            "reg_lambda": [5, 10, 20]
+            "reg_lambda": [5, 10, 20],
+            "max_delta_step": [0, 1, 5]
         }
 
         tscv = TimeSeriesSplit(n_splits=5)
@@ -637,9 +638,9 @@ def train_v10_model(conn):
             estimator=clf_xgb, # base model the RSC will tune
             param_distributions=param_dist, 
             n_iter=50, # how many differeny hyperparameter combinations to try
-            scoring="roc_auc", # scoring metric used to decide which model is "best"
+            scoring="neg_log_loss", # scoring metric used to decide which model is "best"
             cv=tscv, # always trains on past and tests on future
-            n_jobs=10, # how many CPU cores to use in parallel
+            n_jobs=-1, # how many CPU cores to use in parallel
             random_state=42, # seed for randomness
             verbose=1 # controls how much output you see
         )

@@ -33,7 +33,9 @@ def update_player_positions(con, year):
         "Yongxi Cui": "Cui Yongxi",
         "Terence Davis II": "Terence Davis",
         "Boo Buie": "Boo Buie III",
-        "Nikola Durisic": "Nikola Đurisic"
+        "Nikola Durisic": "Nikola Đurisic",
+        "RJ Hampton Jr": "RJ Hampton",
+        "Leonard Miller-DUP": "Leonard Miller"
     }
 
     df = pd.read_html(f"https://www.fantasypros.com/nba/stats/overall.php?year={year}")[0]
@@ -90,7 +92,7 @@ def update_player_positions(con, year):
 
             cur.execute("""
 
-                INSERT OR REPLACE INTO PLAYER_POSITIONS_TEMP (PLAYER_NAME, PLAYER_ID, POSITION)
+                INSERT OR REPLACE INTO PLAYER_POSITIONS (PLAYER_NAME, PLAYER_ID, POSITION)
                 VALUES (?, ?, ?)
 
             """, (player_name, int(player_id), position))
@@ -104,7 +106,7 @@ if __name__ == "__main__":
     con = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cur = con.cursor()
 
-    update_player_positions(con, "2024")
+    update_player_positions(con, "2023")
 
         
 

@@ -466,7 +466,7 @@ def update_props_training_table(season_start_date, conn):
 
         if player_game_logs_before_curr_date_vs_opp.empty:
 
-            print(f"Could not find gamelogs for current player before {curr_date}")
+            print(f"Could not find gamelogs against opposition for current player before {curr_date}")
             return [], np.nan, np.nan, np.nan, 0
 
         opp_games_for_current_prop = player_game_logs_before_curr_date_vs_opp[prop].to_list()
@@ -556,7 +556,7 @@ def update_props_training_table(season_start_date, conn):
     today = datetime.now(ZoneInfo(config.TIMEZONE)).date()
     check_for_latest_date = pd.read_sql_query("SELECT * FROM PROPS_TRAINING_TABLE ORDER BY GAME_DATE DESC", conn)
     latest_date_str = check_for_latest_date['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date() + timedelta(days=1)
+    curr_date = datetime.strptime("2025-10-21", "%Y-%m-%d").date() + timedelta(days=1)
 
     # all games during and before the curr_date ordered by game date descending
     game_logs = pd.read_sql_query('SELECT * FROM player_game_logs ORDER BY GAME_DATE DESC', conn)
@@ -1121,9 +1121,8 @@ def update_minutes_projection_features_table(conn, season_start_date):
     positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
 
     latest_date_str = pd.read_sql_query("SELECT * FROM MINUTES_PROJECTION_TRAINING ORDER BY GAME_DATE DESC LIMIT 1", conn)['GAME_DATE'].iloc[0]
-    curr_date = datetime.strptime("2024-10-22", "%Y-%m-%d").date()
+    curr_date = datetime.strptime(latest_date_str, "%Y-%m-%d").date()
     end_date = datetime.now(ZoneInfo("America/New_York")).date()
-    end_date = datetime.strptime("2025-06-22", "%Y-%m-%d").date()
     cursor = conn.cursor()
 
     while curr_date < end_date:
@@ -1140,7 +1139,7 @@ def update_minutes_projection_features_table(conn, season_start_date):
 
             if not positions:
 
-                print(f"Could not find positions for {player_name}.")
+                print(f"Could not find positions for {player_name} ({player_id}).")
                 sys.exit(1)
 
             team_id = today_game_logs[today_game_logs['PLAYER_ID'] == player_id]['TEAM_ID'].iloc[0]
@@ -1181,18 +1180,18 @@ def update_minutes_projection_features_table(conn, season_start_date):
 
             placeholders = ", ".join(["?"]*len(stats))
 
-            cursor.execute(f"""
+            if actual_minutes_played > 0:
 
-                INSERT OR REPLACE INTO MINUTES_PROJECTION_TRAINING VALUES ({placeholders})
+                cursor.execute(f"""
 
-            """, stats)
-        
+                    INSERT OR REPLACE INTO MINUTES_PROJECTION_TRAINING VALUES ({placeholders})
+
+                """, stats)
+                
+        conn.commit()
 
         curr_date += timedelta(days=1)
 
-    cursor.execute("DELETE FROM MINUTES_PROJECTION_TRAINING WHERE MINUTES = 0")
-
-    conn.commit()
 
 if __name__ == "__main__":
 
@@ -1201,8 +1200,8 @@ if __name__ == "__main__":
 
     cursor = conn.cursor()
 
-    season_start_date = "2024-10-22"
+    season_start_date = "2025-10-21"
 
-    update_minutes_projection_features_table(conn=conn, season_start_date=season_start_date)
+    update_props_training_table(conn=conn, season_start_date=season_start_date)
 
     print(f"Done with updating.")

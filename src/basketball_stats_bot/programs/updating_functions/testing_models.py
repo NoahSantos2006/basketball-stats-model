@@ -30,7 +30,7 @@ if __name__ == "__main__":
     ]
 
     curr_date_str = '2026-01-01'
-    end_date_str = '2026-01-01'
+    end_date_str = '2026-01-07'
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     
@@ -81,6 +81,14 @@ if __name__ == "__main__":
                 # ),
 
                 'xgb_v15': xgb.XGBClassifier (
+                    **usage_params,
+                    objective="binary:logistic",
+                    random_state=42,
+                    eval_metric='auc',
+                    tree_method='hist',
+                ),
+
+                'xgb_v16': xgb.XGBClassifier (
                     **usage_params,
                     objective="binary:logistic",
                     random_state=42,
@@ -271,6 +279,28 @@ if __name__ == "__main__":
                         "VENUE",
                     ]
                 
+                elif name == 'xgb_v16':
+
+                    features = [
+                        "LAST_GAME",
+                        "AVG_LAST_3_OVERALL",
+                        "AVG_LAST_5_OVERALL",
+                        "AVG_LAST_7_OVERALL",
+                        "AVG_LAST_10_OVERALL",
+                        "AVERAGE_LAST_20",
+                        "LAST_GAME_VS_OPP",
+                        "AVG_LAST_3_VS_OPP",
+                        "AVG_LAST_7_VS_OPP",
+                        "AVERAGE_LAST_10_VS_OPP",
+                        "DEF_RANK",
+                        "OPP_GAME_COUNT",
+                        "MINUTES_PROJECTION",
+                        "POSITION_MISSING_STAT",
+                        # f"AVERAGE_LAST_5_EXPECTED_{prop}_MINUS_LINE",
+                        # f"AVERAGE_LAST_10_EXPECTED_{prop}_MINUS_LINE",
+                        "VENUE",
+                    ]
+                
                 
                 X_train = train_df[features]
                 y_train = train_df['TARGET']
@@ -319,16 +349,16 @@ if __name__ == "__main__":
                 brier = brier_score_loss(y_test_masked, y_proba_masked)
                 logloss = log_loss(y_test_masked, y_proba_masked)
 
-                results.append({
-                    'DATE': str(curr_date),
-                    'MODEL': name + "_train",
-                    'PROP': prop,
-                    'AUC SCORE': auc_train,
-                    'BRIER SCORE': brier_train,
-                    'LOG LOSS': logloss_train,
-                    'HIT RATE': hit_rate,
-                    'COVERAGE': coverage
-                })
+                # results.append({
+                #     'DATE': str(curr_date),
+                #     'MODEL': name + "_train",
+                #     'PROP': prop,
+                #     'AUC SCORE': auc_train,
+                #     'BRIER SCORE': brier_train,
+                #     'LOG LOSS': logloss_train,
+                #     'HIT RATE': hit_rate,
+                #     'COVERAGE': coverage
+                # })
 
                 results.append({
                     'DATE': str(curr_date),
@@ -358,6 +388,8 @@ if __name__ == "__main__":
 
     xgb_v15_model = results_df[results_df['MODEL'] == 'xgb_v15']
     v15_avg_auc = xgb_v15_model['AUC SCORE'].sum() / len(xgb_v15_model)
+
+    print(results_df)
 
     print(f"Average AUC for v9: {v9_avg_auc}")
     print(f"Average AUC for v15: {v15_avg_auc}")

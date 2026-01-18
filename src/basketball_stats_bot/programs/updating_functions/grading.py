@@ -38,7 +38,7 @@ def update_system(conn):
                 box = boxscore.BoxScore(gameId)
             except Exception as e:
                 print(f"Could not find a boxscore for {gameId} ({e})")
-                sys.exit(1)
+                raise
 
             stats = box.get_dict()['game']
 
@@ -172,7 +172,12 @@ def update_system(conn):
 
     system_df = pd.read_sql_query("SELECT * FROM SYSTEM", conn)
 
-    non_updated = system_df[system_df['RESULT'].isna()]
+    today = datetime.now(ZoneInfo(config.TIMEZONE)).strftime("%Y-%m-%d")
+
+    non_updated = system_df[
+        (system_df['RESULT'].isna()) &
+        (system_df['DATE'] != str(today))
+    ]
 
     if non_updated.empty:
 

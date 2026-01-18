@@ -20,7 +20,12 @@ if __name__ == "__main__":
     con = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cur = con.cursor()
 
-    cur.execute("DELETE FROM MINUTES_PROJECTION_TRAINING WHERE MINUTES = 0")
+    cur.execute("""
+
+        INSERT OR REPLACE INTO PLAYER_POSITIONS
+        VALUES (?, ?, ?)
+
+    """, ("Izan Almansa", 1641891, "PF"))
 
     con.commit()
 
