@@ -5,9 +5,11 @@ import sys
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-def update_defense_vs_position(conn, current_season_start_date):
+from basketball_stats_bot.config import load_config
 
-    def update_table(curren_season_start_date, team_id, team_name, conn):
+def update_defense_vs_position(conn, current_season_start_date, current_season_end_date):
+
+    def update_table(current_season_start_date, current_season_end_date, team_id, team_name, conn):
 
         cursor = conn.cursor()
 
@@ -20,11 +22,12 @@ def update_defense_vs_position(conn, current_season_start_date):
                 JOIN PLAYER_POSITIONS p
                     ON g.PLAYER_ID = p.PLAYER_ID
                 WHERE g.GAME_DATE >= ?
+                AND g.GAME_DATE <= ?
                 AND p.POSITION = ?
                 AND g.OPPOSITION_ID = ?
                 AND g.MIN > ?
 
-            """, conn, params=(current_season_start_date, position, team_id, 0))
+            """, conn, params=(current_season_start_date, current_season_end_date, position, team_id, 0))
             
             games_played = len(curr_position_vs.drop_duplicates('GAME_ID'))
             total_minutes = curr_position_vs['MIN'].sum()
@@ -91,22 +94,16 @@ def update_defense_vs_position(conn, current_season_start_date):
             placeholders = ", ".join(['?']*len(values_per_48))
             cursor.execute(f"""
 
-                INSERT OR REPLACE INTO DEFENSE_VS_POSITION_2025_2026 VALUES ({placeholders})
+                INSERT OR REPLACE INTO DEFENSE_VS_POSITION_2024_2025 VALUES ({placeholders})
 
             """, values_per_48)
 
         conn.commit()
 
     team = pd.read_sql_query("SELECT * FROM DEFENSE_VS_POSITION_2025_2026", conn).drop_duplicates('TEAM_ID')
-
     today = datetime.now(ZoneInfo("America/New_York")).date()
 
-    if team['LAST_UPDATED'].iloc[0] == str(today):
-
-        print(f"Defense vs Position table was already been updated today ({today}).")
-        return
-
-    team_ids = team['TEAM_ID'].to_list()
+    team_ids = team.drop_duplicates('TEAM_ID')['TEAM_ID'].to_list()
 
     print(f"Updating Defense vs. Position Table...")
 
@@ -114,18 +111,21 @@ def update_defense_vs_position(conn, current_season_start_date):
         
         team_name = team[team['TEAM_ID'] == team_id]['TEAM_NAME'].iloc[0]
 
-        update_table(current_season_start_date, team_id, team_name, conn)
+        update_table(current_season_start_date, current_season_end_date, team_id, team_name, conn)
     
     print(f"Updated Defense vs Position Table")
 
+
 if __name__ == '__main__':
 
-    conn = sqlite3.connect(r"C:\Users\noahs\.vscode\basketball stats bot\main\game_data\data.db")
+    config = load_config()
+    conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
     cursor = conn.cursor()
 
-    current_season_start_date = '2025-10-21'
+    current_season_start_date = '2024-10-22'
+    current_season_end_date = '2025-04-13'
 
-    update_defense_vs_position(conn, current_season_start_date)
+    update_defense_vs_position(conn, current_season_start_date, current_season_end_date)
 
     
 

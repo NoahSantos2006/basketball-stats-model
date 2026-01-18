@@ -17,7 +17,7 @@ from requests import Timeout
 
 from basketball_stats_bot.config import load_config
 from nba_api.live.nba.endpoints import scoreboard, boxscore
-from nba_api.stats.endpoints import leaguegamefinder, commonteamroster, GameRotation, playbyplayv3
+from nba_api.stats.endpoints import leaguegamefinder, commonteamroster
 from basketball_stats_bot.programs.scoring.scoring_functions import scoringv10
 
 
@@ -122,6 +122,155 @@ def get_odds_api_ids(API_KEY, date_str, conn):
     conn.commit()
 
     return today_game_ids
+
+def update_dnps_table(conn, season_start_date, curr_inputted_date):
+
+    def find_average_minutes(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_minutes = 0
+        
+        else:
+
+            average_minutes = float(player_game_logs_before_curr_date['MIN'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_minutes
+    
+    def find_average_points(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_points = 0
+        
+        else:
+
+            average_points = float(player_game_logs_before_curr_date['PTS'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_points
+    
+    def find_average_assists(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_assists = 0
+        
+        else:
+
+            average_assists = float(player_game_logs_before_curr_date['AST'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_assists
+    
+    def find_average_rebounds(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_rebounds = 0
+        
+        else:
+
+            average_rebounds = float(player_game_logs_before_curr_date['REB'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_rebounds
+    
+    def find_average_FG3M(player_id, curr_date, game_logs):
+
+        player_game_logs_before_curr_date = game_logs[
+            (game_logs['GAME_DATE'] < curr_date) &
+            (game_logs['MIN'] > 0) &
+            (game_logs['PLAYER_ID'] == player_id)
+        ]
+
+        if len(player_game_logs_before_curr_date) == 0:
+
+            average_FG3M = 0
+        
+        else:
+
+            average_FG3M = float(player_game_logs_before_curr_date['FG3M'].sum()) / len(player_game_logs_before_curr_date)
+
+        return average_FG3M
+    
+    cursor = conn.cursor()
+    
+    curr_date = datetime.strptime(str(curr_inputted_date), "%Y-%m-%d").date()
+
+    check_for_existing = pd.read_sql_query("SELECT * FROM DNPS WHERE GAME_DATE = ?", conn, params=(str(curr_inputted_date),))
+
+    if not check_for_existing.empty:
+
+        print(f"DNPS are already updated for {curr_date}")
+        return
+
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE >= ?", conn, params=(season_start_date,))
+
+    check_for_existing = pd.read_sql_query("SELECT * FROM DNPS WHERE GAME_DATE = ?", conn, params=(str(curr_inputted_date),))
+
+    print(f"Updating DNPS sql table for {curr_date}..")
+
+    curr_date_game_ids = pd.read_sql_query("SELECT * FROM NBA_API_GAME_IDS WHERE DATE = ?", conn, params=(str(curr_date),))['GAME_ID'].to_list()
+
+    for game_id in curr_date_game_ids:
+
+        box = boxscore.BoxScore(game_id=game_id).get_dict()
+
+        teams = {'homeTeam': box['game']['homeTeam'], 'awayTeam': box['game']['awayTeam']}
+
+        for venue, venue_function in teams.items():
+
+            for player in venue_function['players']:
+
+                if player['status'] != "ACTIVE" or 'notPlayingReason' in player:
+
+                    team_id = venue_function['teamId']
+                    team_name = f"{venue_function['teamCity']} {venue_function['teamName']}"
+                    player_name = player['name']
+                    player_id = player['personId']
+                    curr_avg_min = find_average_minutes(player_id, str(curr_date), season_game_logs)
+                    curr_avg_pts = find_average_points(player_id, str(curr_date), season_game_logs)
+                    curr_avg_ast = find_average_assists(player_id, str(curr_date), season_game_logs)
+                    curr_avg_reb = find_average_rebounds(player_id, str(curr_date), season_game_logs)
+                    curr_avg_fg3m = find_average_FG3M(player_id, str(curr_date), season_game_logs)
+                    curr_avg_pra = curr_avg_pts + curr_avg_ast + curr_avg_reb
+                    curr_avg_pts_ast = curr_avg_pts + curr_avg_ast
+                    curr_avg_pts_reb = curr_avg_pts + curr_avg_reb
+                    curr_avg_reb_ast = curr_avg_reb + curr_avg_ast
+
+                    stats = [str(curr_date), game_id, team_id, team_name, 
+                                player_id, player_name, curr_avg_min, 0, curr_avg_pts,
+                                curr_avg_reb, curr_avg_ast, curr_avg_fg3m, curr_avg_pra,
+                                curr_avg_pts_reb, curr_avg_pts_ast, curr_avg_reb_ast]
+
+                    placeholders = ", ".join(['?']*len(stats))
+
+                    cursor.execute(f"INSERT OR REPLACE INTO DNPS VALUES ({placeholders})", stats)
+
+    conn.commit()
+    print(f"Finished updating the DNPS sql table for {curr_date}")
 
 def get_historical_prop_lines(date, today_ids, apiKey, conn):
 
@@ -423,48 +572,6 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
 
     config = load_config()
 
-    def get_roster(home_team_id, teamTricode, opposition_id, opposition_tricode, current_season, venue, curr_game_id):
-
-        while True:
-
-            try:
-                roster = commonteamroster.CommonTeamRoster(
-                    team_id=home_team_id,
-                    season=current_season,
-                    timeout=30
-                )
-                break
-
-            except Timeout as t:
-                
-                print(t)
-                time.sleep(2)
-                continue
-
-            except:
-
-                raise
-
-        df = roster.get_data_frames()[0]
-
-        if venue == "home":
-
-            df['MATCHUP'] = f"{teamTricode} vs. {opposition_tricode}"
-        
-        else:
-
-            df['MATCHUP'] = f"{teamTricode} @ {opposition_tricode}"
-
-        df['GAME_ID'] = curr_game_id
-        df['date'] = curr_date
-        df['team_tricode'] = teamTricode
-        df['opposition_team_id'] = opposition_id
-        df['opposition_tricode'] = opposition_tricode
-        
-        time.sleep(0.5)
-
-        return df
-    
     def get_past_roster(gid):
 
         while True:
@@ -494,6 +601,8 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
         box = box.get_dict()
 
         for team in ['homeTeam', 'awayTeam']:
+
+            print(f"Finding Rosters for {box['game'][team]['teamName']}")
 
             for player in box['game'][team]['players']:
 
@@ -537,118 +646,86 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
 
         print(f"Already found a scoreboard to roster df for {curr_date}")
         return check_for_existing
+        
+    while True:
+        
+        try: 
 
-    if curr_date == str(today):
+            gamefinder = leaguegamefinder.LeagueGameFinder(
+                        date_from_nullable=curr_date,
+                        date_to_nullable=curr_date
+                    )
+            break
 
-        board = scoreboard.ScoreBoard()
+        except Timeout as t:
 
-        if not board:
+            print(t)
+            time.sleep(2)
+            continue
 
-            print(f"No games on {curr_date}.")
-            exit()
+        except:
+            raise
 
-        games = board.games.get_dict()
+    games_df = gamefinder.get_data_frames()[0]
 
-        games_dict = {}
-        gameIds = [game['gameId'] for game in games]
+    gameIds = list(games_df['GAME_ID'].drop_duplicates())
 
-        for game in games:
+    team_tricode_arr = games_df['TEAM_ABBREVIATION'].to_list()
+    team_id_arr = games_df['TEAM_ID'].to_list()
+    matchup_arr = games_df['MATCHUP'].to_list()
+    game_id_arr = games_df['GAME_ID'].to_list()
+    team_name_arr = games_df['TEAM_NAME'].to_list()
 
-            games_dict[game['gameId']] = {
+    games_dict = {}
+
+    for i in range(len(game_id_arr)):
+
+        if game_id_arr[i] in games_dict:
+
+            curr = games_dict[game_id_arr[i]]
+
+            if not curr['homeTeam']['teamId']:
+                
+                curr['homeTeam']['teamName'] = team_name_arr[i]
+                curr['homeTeam']['teamId'] = team_id_arr[i]
+                curr['homeTeam']['teamTricode'] = team_tricode_arr[i]
+            
+            else:
+                
+                curr['awayTeam']['teamName'] = team_name_arr[i]
+                curr['awayTeam']['teamId'] = team_id_arr[i]
+                curr['awayTeam']['teamTricode'] = team_tricode_arr[i]
+            
+        else:
+
+            games_dict[game_id_arr[i]] = {
 
                 'homeTeam': {
-                    'teamName': f"{game['homeTeam']['teamCity']} {game['homeTeam']['teamName']}",
-                    'teamId': game['homeTeam']['teamId'],
-                    'teamTricode': game['homeTeam']['teamTricode'],
-                },
-
+                    'teamName': None,
+                    'teamId': None,
+                    'teamTricode': None
+                }, 
                 'awayTeam': {
-                    'teamName': f"{game['awayTeam']['teamCity']} {game['awayTeam']['teamName']}",
-                    'teamId': game['awayTeam']['teamId'],
-                    'teamTricode': game['awayTeam']['teamTricode'],
+                    'teamName': None,
+                    'teamId': None,
+                    'teamTricode': None
                 }
+
             }
 
-    else:
-        
-        while True:
+            curr = games_dict[game_id_arr[i]]
+
+            if '@' in matchup_arr[i]:
+
+                curr['awayTeam']['teamName'] = team_name_arr[i]
+                curr['awayTeam']['teamId'] = team_id_arr[i]
+                curr['awayTeam']['teamTricode'] = team_tricode_arr[i]
             
-            try: 
-
-                gamefinder = leaguegamefinder.LeagueGameFinder(
-                            date_from_nullable=curr_date,
-                            date_to_nullable=curr_date
-                        )
-                break
-
-            except Timeout as t:
-
-                print(t)
-                time.sleep(2)
-                continue
-
-            except:
-                raise
-
-        games_df = gamefinder.get_data_frames()[0]
-        gameIds = list(games_df['GAME_ID'].drop_duplicates())
-
-        team_tricode_arr = games_df['TEAM_ABBREVIATION'].to_list()
-        team_id_arr = games_df['TEAM_ID'].to_list()
-        matchup_arr = games_df['MATCHUP'].to_list()
-        game_id_arr = games_df['GAME_ID'].to_list()
-        team_name_arr = games_df['TEAM_NAME'].to_list()
-
-        games_dict = {}
-
-        for i in range(len(game_id_arr)):
-
-            if game_id_arr[i] in games_dict:
-
-                curr = games_dict[game_id_arr[i]]
-
-                if not curr['homeTeam']['teamId']:
-                    
-                    curr['homeTeam']['teamName'] = team_name_arr[i]
-                    curr['homeTeam']['teamId'] = team_id_arr[i]
-                    curr['homeTeam']['teamTricode'] = team_tricode_arr[i]
-                
-                else:
-                    
-                    curr['awayTeam']['teamName'] = team_name_arr[i]
-                    curr['awayTeam']['teamId'] = team_id_arr[i]
-                    curr['awayTeam']['teamTricode'] = team_tricode_arr[i]
-                
             else:
 
-                games_dict[game_id_arr[i]] = {
-
-                    'homeTeam': {
-                        'teamName': None,
-                        'teamId': None,
-                        'teamTricode': None
-                    }, 
-                    'awayTeam': {
-                        'teamName': None,
-                        'teamId': None,
-                        'teamTricode': None
-                    }
-
-                }
-
-                curr = games_dict[game_id_arr[i]]
-
-                if '@' in matchup_arr[i]:
-
-                    curr['awayTeam']['teamName'] = team_name_arr[i]
-                    curr['awayTeam']['teamId'] = team_id_arr[i]
-                    curr['awayTeam']['teamTricode'] = team_tricode_arr[i]
-                
-                else:
-
-                    curr['homeTeam']['teamName'] = team_name_arr[i]
-                    curr['homeTeam']['teamId'] = team_id_arr[i]
-                    curr['homeTeam']['teamTricode'] = team_tricode_arr[i]
+                curr['homeTeam']['teamName'] = team_name_arr[i]
+                curr['homeTeam']['teamId'] = team_id_arr[i]
+                curr['homeTeam']['teamTricode'] = team_tricode_arr[i]
 
     today_nba_api_gameIds = []
 
@@ -674,24 +751,11 @@ def scoreboard_to_team_roster(current_season, curr_date, conn):
     
     for curr_game_id, game in games_dict.items():
 
-        if str(curr_date) == str(today):
+        past_roster = get_past_roster(curr_game_id)
 
-            home_team = game['homeTeam']
-            away_team = game['awayTeam']
+        if  not past_roster.empty:
 
-            print(f"Extracting roster from the {home_team['teamName']}\n")
-            dfs.append(get_roster(home_team['teamId'], home_team['teamTricode'], away_team['teamId'], away_team['teamTricode'], current_season, "home", curr_game_id))
-
-            print(f"Extracting roster from the {away_team['teamName']}\n")
-            dfs.append(get_roster(away_team['teamId'], away_team['teamTricode'], home_team['teamId'], home_team['teamTricode'], current_season, "away", curr_game_id))
-        
-        else:
-
-            past_roster = get_past_roster(curr_game_id)
-
-            if  not past_roster.empty:
-
-                dfs.append(past_roster)
+            dfs.append(past_roster)
     
     if not dfs:
 
@@ -796,7 +860,7 @@ def player_vs_team_or_last_20(scoreboard_to_team_roster_df, curr_date, current_s
 
     return player_vs_team_or_last_20_df
 
-def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, curr_date, conn, season_start_date):
+def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, curr_date, conn, season_start_date, season):
 
     config = load_config()
     
@@ -1168,7 +1232,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, c
     scoreboard['PLAYER'] = scoreboard['PLAYER'].apply(clean_name)
     player_positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
     team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER WHERE GAME_DATE < ?", conn, params=(str(curr_date),))
-    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE < ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(str(curr_date), season_start_date))
+    season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE <= ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(str(curr_date), season_start_date))
 
     if 'name_clean' not in player_vs_team_or_last_20_df.columns:
 
@@ -1199,10 +1263,20 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, c
 
         if clean_name(player) not in player_games:
 
-            print(f"Could not find {player} in player_games. Check historical_data.py: Line 1087")
-            sys.exit(1)
-            continue
+            player_game_logs = season_game_logs[season_game_logs['NAME_CLEAN'] == player]
+            current_box_score = player_game_logs[player_game_logs['GAME_DATE'] == str(curr_date)]
+
+            if current_box_score.empty:
+                
+                print(f"Did not find a game log for {player} on {curr_date}. Check historicaldata.py Line 1271 in player_vs_prop_scores().")
+                continue
+                
+            else:
+
+                print(f"Could not find {player} in player_games. Check historical_data.py: Line 1266")
+                sys.exit(1)
         
+        season_game_logs = season_game_logs[season_game_logs['GAME_DATE'] < str(curr_date)]
         curr_player_vs_team_or_last_20_df = player_games[player]
         curr_player_vs_team_or_last_20_df = curr_player_vs_team_or_last_20_df.sort_values('GAME_DATE', ascending=False)
 
@@ -1227,7 +1301,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, c
             curr_score, curr_features = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
                                                    translation[prop], line, scoreboard, player_positions_df, 
                                                    curr_date, team_totals_per_player_df, minutes_projection, 
-                                                   season_game_logs, conn, season_start_date)
+                                                   season_game_logs, conn, season_start_date, season)
 
             all_features.append(curr_features)
 
@@ -2415,10 +2489,11 @@ if __name__ == "__main__":
     conn = sqlite3.connect(config.DB_ONE_DRIVE_PATH)
 
     current_season = "2024-25"
+    season = "2024_2025"
     current_season_start_date = "2024-10-22"
+    curr_date_str = "2025-01-09"
+    end_date_str = "2025-01-09"
 
-    curr_date_str = "2025-01-01"
-    end_date_str = "2025-01-01"
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
 
@@ -2456,7 +2531,9 @@ if __name__ == "__main__":
 
         player_vs_team_or_last_20_df = player_vs_team_or_last_20(scoboard_to_team_roster_df, str(curr_date), current_season_start_date, conn)
 
-        scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, str(curr_date), conn, current_season_start_date)
+        update_dnps_table(conn=conn, season_start_date=current_season_start_date, curr_inputted_date=str(curr_date))
+
+        scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, str(curr_date), conn, current_season_start_date, season)
 
         if scores != 1:
 

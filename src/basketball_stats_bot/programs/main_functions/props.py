@@ -318,7 +318,7 @@ def props_parser(all_game_event_odds, conn):
 
     return parser
 
-def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, curr_date, conn, season_start_date):
+def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, curr_date, conn, season_start_date, season):
 
     config = load_config()
         
@@ -742,7 +742,8 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, c
             curr_score, curr_features = scoringv10(curr_player_vs_team_or_last_20_df, current_opposition_ID, 
                                    translation[prop], line, scoreboard, 
                                    player_positions_df, curr_date, team_totals_per_player_df, 
-                                   minutes_projection, season_game_logs, conn, config.SEASON_START_DATE)
+                                   minutes_projection, season_game_logs, conn, 
+                                   config.SEASON_START_DATE, season)
             
             all_features.append(curr_features)
 

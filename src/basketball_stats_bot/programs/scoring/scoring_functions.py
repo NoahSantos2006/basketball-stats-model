@@ -2010,7 +2010,7 @@ def scoringv9(game_logs, current_opposition_id, prop, line, scoreboard, player_p
             return prob_over
 
 # similar to v9 but uses minutes projection, position_missing_stat, and player share as well as expected last 5_10
-def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn, season_start_date):
+def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_positions, curr_date, team_totals_per_player_df, minutes_projection, season_game_logs, conn, season_start_date, season):
 
     def find_features(game_logs, player_id, conn, curr_date, scoreboard, player_positions_df, team_totals_per_player_df, minutes_projection, season_game_logs):
 
@@ -2115,13 +2115,13 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
             
             return avg_last_5_pct_share, avg_last_10_pct_share, avg_last_5_team_totals, avg_last_10_team_totals, avg_last_5_minutes, avg_last_10_minutes
 
-        def find_defensive_rank(conn, positions, team_id, prop):
+        def find_defensive_rank(conn, positions, team_id, prop, season):
 
             rank = 0
 
             for position in positions:
 
-                df = pd.read_sql_query(f"SELECT * FROM DEFENSE_VS_POSITION_2025_2026 WHERE POSITION = ? ORDER BY {prop} DESC", conn, params=(position,))
+                df = pd.read_sql_query(f"SELECT * FROM DEFENSE_VS_POSITION_{season} WHERE POSITION = ? ORDER BY {prop} DESC", conn, params=(position,))
 
                 rank += df.index[df['TEAM_ID'] == team_id][0]
             
@@ -2266,7 +2266,7 @@ def scoringv10(game_logs, current_opposition_id, prop, line, scoreboard, player_
          avg_last_5_minutes, avg_last_10_minutes
         ) = find_team_totals_and_player_share(curr_season_player_game_logs, prop, curr_team_total_per_player)
         
-        def_rank = find_defensive_rank(conn, player_positions, current_opposition_id, prop)
+        def_rank = find_defensive_rank(conn, player_positions, current_opposition_id, prop, season)
 
         (
             last_5_games_overall, average_overall_last_20_minus_line,

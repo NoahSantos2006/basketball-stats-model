@@ -21,6 +21,7 @@ if __name__ == "__main__":
 
     config = load_config()
     current_season = "2025-26"
+    season = "2025_2026"
 
     start = time.time()
 
@@ -106,7 +107,7 @@ if __name__ == "__main__":
 
             draftkings_sportsbook = props_parser(all_game_event_odds, conn)
 
-            scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, config.SEASON_START_DATE)
+            scores = player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, date, conn, config.SEASON_START_DATE, season)
 
             system = result(scores, date, conn)
 

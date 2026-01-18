@@ -32,4 +32,6 @@ TODO LIST
 
 13. Fix corrupted game rotation games
 
+# odds api cost: 
+
 
