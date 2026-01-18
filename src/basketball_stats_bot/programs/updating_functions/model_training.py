@@ -477,7 +477,6 @@ def train_v8_model(conn):
         print(f"Training XGBoost Model V8 for {prop}..")
         train_model(conn, prop)
 
-
 def train_v9_model(conn):
 
     config = load_config()

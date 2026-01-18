@@ -29,8 +29,8 @@ if __name__ == "__main__":
         'REB_AST'
     ]
 
-    curr_date_str = '2026-01-01'
-    end_date_str = '2026-01-03'
+    curr_date_str = '2026-01-03'
+    end_date_str = '2026-01-10'
     curr_date = datetime.strptime(curr_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     
@@ -88,13 +88,13 @@ if __name__ == "__main__":
                     tree_method='hist',
                 ),
 
-                'xgb_v16': xgb.XGBClassifier (
-                    **usage_params,
-                    objective="binary:logistic",
-                    random_state=42,
-                    eval_metric='logloss',
-                    tree_method='hist',
-                )
+                # 'xgb_v16': xgb.XGBClassifier (
+                #     **usage_params,
+                #     objective="binary:logistic",
+                #     random_state=42,
+                #     eval_metric='logloss',
+                #     tree_method='hist',
+                # )
 
             }
 
@@ -374,8 +374,6 @@ if __name__ == "__main__":
         curr_date += timedelta(days=1)
             
     results_df = pd.DataFrame(results)
-
-    results_df.to_json("results_df.json", orient='records', indent=4)
 
     xgb_v9_train_model = results_df[results_df['MODEL'] == 'xgb_v9_train']
     v9_train_avg_auc = xgb_v9_train_model['AUC SCORE'].sum() / len(xgb_v9_train_model)
