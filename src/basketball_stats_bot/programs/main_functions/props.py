@@ -682,7 +682,7 @@ def player_vs_prop_scores(player_vs_team_or_last_20_df, draftkings_sportsbook, c
     scoreboard = pd.read_sql_query("SELECT * FROM SCOREBOARD_TO_ROSTER WHERE DATE = ?", conn, params=(curr_date,))
     scoreboard['PLAYER'] = scoreboard['PLAYER'].apply(clean_name)
     player_positions_df = pd.read_sql_query("SELECT * FROM PLAYER_POSITIONS", conn)
-    team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER WHERE GAME_DATE < ?", conn, params=(str(curr_date)))
+    team_totals_per_player_df = pd.read_sql_query("SELECT * FROM TEAM_TOTALS_PER_PLAYER WHERE GAME_DATE < ?", conn, params=(str(curr_date),))
     season_game_logs = pd.read_sql_query("SELECT * FROM player_game_logs WHERE GAME_DATE < ? AND GAME_DATE >= ? ORDER BY GAME_DATE DESC", conn, params=(curr_date, season_start_date))
 
     if 'name_clean' not in player_vs_team_or_last_20_df.columns:

@@ -41,10 +41,15 @@ def update_db_gamelogs(conn):
 
     def find_game_ids_by_date(date):
 
-        gamefinder = leaguegamefinder.LeagueGameFinder(
-            date_from_nullable=date,
-            date_to_nullable=date
-        )
+        try: 
+            gamefinder = leaguegamefinder.LeagueGameFinder(
+                date_from_nullable=date,
+                date_to_nullable=date
+            )
+        except json.decoder.JSONDecodeError as j:
+
+            print(j)
+            return [], 0
 
         games = gamefinder.get_data_frames()[0]
 
@@ -76,7 +81,7 @@ def update_db_gamelogs(conn):
                 print(t)
                 time.sleep(5)
                 continue
-
+            
             except:
                 
                 with open(f"corrupted_BoxScore_{start_date_str}-{curr_date}.json", "w") as f:
@@ -86,6 +91,8 @@ def update_db_gamelogs(conn):
                 with open(f"corrupted_BoxScoreUsage_{start_date_str}-{curr_date}.json", "w") as f:
 
                     json.dump(corrupted_boxscore, f, indent=4)
+                
+                print(f"Failed on {gameId}")
 
                 conn.close()
                 raise
@@ -253,9 +260,9 @@ def update_db_gamelogs(conn):
     # DESC - descending order
     # ASC - ascending order
     # LIMIT - how many rows SQL returns
-    start_date_str = "2024-04-04"
+    start_date_str = "2023-03-16"
     curr_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-    end_date = datetime.strptime("2024-06-17", "%Y-%m-%d").date()
+    end_date = datetime.strptime("2023-06-12", "%Y-%m-%d").date()
 
     while curr_date <= end_date:
 
